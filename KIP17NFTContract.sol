@@ -1320,7 +1320,6 @@ contract MinterRole {
 // File: contracts/token/KIP17/KIP17MetadataMintable.sol
 
 pragma solidity ^0.5.0;
-
 /**
  * @title KIP17MetadataMintable
  * @dev KIP17 minting logic with metadata.
@@ -1335,6 +1334,9 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      *     => 0x50bb4e7f ^ 0xaa271e1a ^ 0x983b2d56 ^ 0x98650275 == 0xfac27f46
      */
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
+    
+    //yun_add 유저가 소유한 id
+    uint256[] userid;
 
     /**
      * @dev Constructor function.
@@ -1360,6 +1362,59 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
         _setTokenURI(tokenId, tokenURI);
         return true;
     }
+    //mint 무료 3회
+    //onlyMinter 삭제
+    function mintNft(
+        address to,
+        uint256 tokenId,
+        string memory nftMetadata
+    ) public returns (bool) {
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, nftMetadata);
+        return true;
+    }
+   
+    //mint 유료, 0.5 klay 
+    function mintWithKlay(
+        address to,
+        uint256 tokenId,
+        string memory nftMetadata,
+        address payable receiver // klay받는 주소
+    ) public payable returns (bool) {
+
+        receiver.transfer(10**17*5);
+        mintNft(to,tokenId, nftMetadata);
+        return true;
+    }
+    //마스터 뱃지 mint (수정사항 : 마스터 뱃지와 일반 뱃지 구분 필요)
+    function mintMasterBadge(
+        address to,
+        uint256 tokenId,
+        string memory nftMetaData,
+        address NFT
+    ) public returns (bool){
+        uint256 userBalance;
+        userBalance = balanceOf(to);
+        //require(userBalance == 20, "You must have 20NFTs")
+        _removeOwnToken(userBalance, to, NFT);
+        //_burn(tokenId);
+        mintNft(to,tokenId, nftMetaData);
+        return true;
+    }
+
+    // 소유한 전체 NFT 삭제
+    function _removeOwnToken(uint256 balance, address to,address NFT) private{
+        //유저가 가지고 있는 토큰id 리트스 확인
+        for (uint256 i = 0; i < balance; i++) {
+            uint256 id = KIP17Enumerable(NFT).tokenOfOwnerByIndex(to,i);
+            userid.push(id);
+        }
+        //유저가 가지고 있는 기존 NFT 삭제
+        for (uint256 i = 0; i < balance; i++) {
+            _burn(userid[i]);
+        }
+    }
+
 }
 
 // File: contracts/token/KIP17/KIP17Mintable.sol
@@ -1414,7 +1469,8 @@ pragma solidity ^0.5.0;
  * @dev KIP17 Token that can be irreversibly burned (destroyed).
  * See http://kips.klaytn.com/KIPs/kip-17-non_fungible_token
  */
-contract KIP17Burnable is KIP13, KIP17 {
+ //yun add 관리자 추가
+contract KIP17Burnable is KIP13, KIP17, MinterRole {
     /*
      *     bytes4(keccak256('burn(uint256)')) == 0x42966c68
      *
@@ -1434,12 +1490,13 @@ contract KIP17Burnable is KIP13, KIP17 {
      * @dev Burns a specific KIP17 token.
      * @param tokenId uint256 id of the KIP17 token to be burned.
      */
-    function burn(uint256 tokenId) public {
+     //yun add burn 권한 소유자가 아닌 관리자로 변경
+    function burn(uint256 tokenId) public onlyMinter{
         //solhint-disable-next-line max-line-length
-        require(
-            _isApprovedOrOwner(msg.sender, tokenId),
-            "KIP17Burnable: caller is not owner nor approved"
-        );
+        // require(
+        //     _isApprovedOrOwner(msg.sender, tokenId),
+        //     "KIP17Burnable: caller is not owner nor approved"
+        // );
         _burn(tokenId);
     }
 }
