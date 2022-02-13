@@ -36,10 +36,11 @@ contract BadgemealNFT {
 	}
 
 	// 채택된 메뉴 추가 함수
-	function addElectedProposal(Proposal _electedProposal, address _voteContract) public{
-		winnerProposals.push(Proposal({
-		menu: _electedProposal.menu,
-		proposer: _electedProposal.proposer,
+	function addElectedProposal(string memory _menu, address _proposer, uint _voteCount, address _voteContract) public{
+		electedProposals.push(Proposal({
+		menu: _menu,
+		proposer: _proposer,
+		voteCount: _voteCount,
 		voteContract: _voteContract
 		}));
 	}
@@ -55,7 +56,7 @@ contract BadgemealNFT {
 	}
 }
 
-contract Vote {
+contract VoteMenu {
 	struct Proposal {
 		string menu;   // 메뉴 이름
 		uint voteCount; // 투표 받은 수
@@ -114,7 +115,7 @@ contract Vote {
 	// 이미 투표 했는지 확인
 	modifier alreadyVoted() {
 		require(
-			votes[msg.sender] != null,
+			votes[msg.sender].vote >= 0,
 			"msg sender already voted"
 		);
 		_;
@@ -125,17 +126,17 @@ contract Vote {
 			now > endTime,
 			"The vote is not ended."
 		);
-		if(electedProposal == null){
+		if(electedProposal.voteCount >= 0){
 			uint voteCount = 0;
 			uint electedIndex = 0; // 투표가 모두 0이면 제일 먼저 등록한 메뉴로 선정 (선착순)
 			for (uint i = 0; i < proposals.length; i++) {
 				if (proposals[i].voteCount > voteCount) {
 					voteCount = proposals[i].voteCount;
-					winningProposal_ = i;
+					electedIndex = i;
 				}
 			}
 			electedProposal = proposals[electedIndex];
-			BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal, address(this));
+			BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal.menu, electedProposal.proposer, electedProposal.voteCount, address(this));
 		}
 		_;
 	}
@@ -158,21 +159,31 @@ contract Vote {
 		votes[msg.sender].vote = proposalIndex;
 		proposals[proposalIndex].voteCount++;
 	}
+	//제안된 메뉴 목록
+	function proposedMenuList() public view returns(string) {
+		string memory result = proposals[0].menu;
+		for(uint i = 1; i < proposals.length; i++){
+			string memory temp = string(abi.encodePacked(", ", proposals[i].menu));
+			result = string(abi.encodePacked(result, temp));
+		}
+		return result;
+	}
 
 	// 투표 결과 - electedProposal 변수에 값이 있으면 반환, 없으면 저장하고 반환
-	function electedProposal() announceResult public view returns (Proposal memory electedProposal_) {
+	/*function getElectedProposal() announceResult public view returns (Proposal memory electedProposal_) {
 		electedProposal_ = electedProposal;
-	}
+	}*/
+
 	// 가장 많은 득표수를 얻은 메뉴 이름을 리턴
-	function electedMenuName() public view announceResult returns (string memory electedMenuName_) {
+	function getElectedMenuName() announceResult public returns (string memory electedMenuName_) {
 		electedMenuName_ = electedProposal.menu;
 	}
 	// 가장 많은 득표수를 얻은 메뉴의 득표수를 리턴
-	function electedMenuVoteCount() public view announceResult returns (uint memory electedMenuVoteCount_) {
+	function getElectedMenuVoteCount() announceResult public returns (uint  electedMenuVoteCount_) {
 		electedMenuVoteCount_ = electedProposal.voteCount;
 	}
 	// 가장 많은 득표수를 얻은 메뉴의 제안자 address를 리턴
-	function electedMenuVoterAddress() public view announceResult returns (address memory electedMenuVoterAddress_) {
+	function getElectedMenuVoterAddress() announceResult public returns (address  electedMenuVoterAddress_) {
 		electedMenuVoterAddress_ = electedProposal.proposer;
 	}
 }
