@@ -1595,6 +1595,7 @@ contract Vote is Ownable {
 						break;
 					} 
 			}
+			return result;
 	}
 
 
