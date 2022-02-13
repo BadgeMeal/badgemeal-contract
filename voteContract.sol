@@ -1169,12 +1169,43 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      */
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
 
+		/**
+     * @dev 🔥KIP17 토큰 표준 수정 
+     */
+    struct Holder {
+        bool isHolder; // true, false
+				uint level;  // 1 : 일반 NFT holder, 2 : 마스터 NFT holder
+		}	
+
+    mapping(address => Holder) public NFTHolders; // NFT 홀더 매핑
+
+
     /**
      * @dev Constructor function.
      */
     constructor () public {
         // register the supported interface to conform to KIP17Mintable via KIP13
         _registerInterface(_INTERFACE_ID_KIP17_METADATA_MINTABLE);
+    }
+
+		// 🔥NFT 홀더인지 체크하는 함수
+    function isNFTHolder(address _address) public view returns(bool) {
+        require(NFTHolders[_address].isHolder, "You are not a NFT holder");
+        return true;
+		}
+
+    // 🔥마스터 NFT 홀더인지 체크하는 함수
+    function isMasterNFTHolder(address _address) public view returns(bool) {
+        require(NFTHolders[_address].isHolder, "You are not a NFT holder");
+        require(NFTHolders[_address].level == 2, "You are not a Master NFT holder");
+		 return true;
+		}
+
+    // 🔥NFT 발행 시 level 세팅
+    function _setLevel(address _address, uint _level) public onlyMinter {
+        require((_level == 1 || _level == 2), "You are already added NFT Holder List");
+        NFTHolders[_address].level = _level;
+        NFTHolders[_address].isHolder = true;
     }
 
     /**
@@ -1184,9 +1215,10 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      * @param tokenURI The token URI of the minted token.
      * @return A boolean that indicates if the operation was successful.
      */
-    function mintWithTokenURI(address to, uint256 tokenId, string memory tokenURI) public onlyMinter returns (bool) {
+    function mintWithTokenURI(address to, uint256 tokenId, string memory tokenURI, uint level) public onlyMinter returns (bool) {
         _mint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
+				 _setLevel(to, level); // 🔥NFT 발행 시 level 세팅
         return true;
     }
 }
