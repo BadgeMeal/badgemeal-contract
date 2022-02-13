@@ -1534,3 +1534,21 @@ contract Ownable is Context {
         _owner = newOwner;
     }
 }
+
+pragma solidity >=0.5.6;
+
+contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintable, KIP17Burnable, KIP17Pausable, Ownable {
+
+    event Klaytn17Burn(address _to, uint256 tokenId);
+
+    constructor (
+        string memory _name,
+        string memory _symbol
+    )
+        KIP17Mintable()
+        KIP17MetadataMintable()
+        KIP17Burnable()
+        KIP17Pausable()
+        KIP17Full(_name, _symbol) public {
+    }
+}
