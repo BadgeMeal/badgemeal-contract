@@ -1598,7 +1598,6 @@ contract Vote is Ownable {
 			return result;
 	}
 
-
 	// 메뉴 추가 함수
 	function proposeMenu(string memory _name, string memory _imageUrl, address _nftAddress) public {
 			require(isMasterNFTholder(_nftAddress), "You have no right to propose.");
@@ -1613,14 +1612,11 @@ contract Vote is Ownable {
 
 	// 투표 함수
 	function vote(uint _proposal, address _nftAddress) public {
-			require(isNFTholder(_nftAddress), "You have no right to vote.");
+			require(isNFTholder(_nftAddress), "You have no right to vote");
+			require(!voters[msg.sender].voted, "Already voted.");
 
-			Voter storage sender = voters[msg.sender];
-
-			require(!sender.voted, "Already voted.");
-
-			sender.voted = true;
-			sender.vote = _proposal;
+			voters[msg.sender].voted = true;
+			voters[msg.sender].vote = _proposal;
 
 			proposals[_proposal].voteCount++;
 	}
