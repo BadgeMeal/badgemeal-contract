@@ -12,22 +12,22 @@
 
 1. badgeMeal 마스터 NFT에 필요한 기능들 선언
   - NFT를 소유하고 있는 유저인지 확인하는 function
-   ```Solidity
-function isHolder(address _address) public view returns(bool) {
+    ```Solidity
+	function isHolder(address _address) public view returns(bool) {
 		return nftHolders[_address];
 	}
-   ```
+    ```
 2.  vote contract에 필요한 modifier
   - contract 소유자인지 확인하는 modifier
-   ```Solidity
-modifier checkOwner() {
+    ```Solidity
+	modifier checkOwner() {
 		require(
 			msg.sender == owner,
 			"msg sender is not a owner."
 		);
 		_;
 	}
-   ```    
+    ```  
   - 투표가능 여부 (투표 가능한 사람 + 가능한 기간) 확인하는 modifier
     ```Solidity
 	modifier checkVoteAvailable() {
@@ -42,7 +42,7 @@ modifier checkOwner() {
 		_;
 	}
     ```
-  -  이미 투표한 사람인지 확인하는 modifier
+  - 이미 투표한 사람인지 확인하는 modifier
     ```Solidity
 	modifier alreadyVoted() {
 		require(
@@ -51,7 +51,7 @@ modifier checkOwner() {
 		);
 		_;
 	}
-    ```    
+    ```
  -  투표 종료시, 결과를 contract에 저장하는 modifier
     ```Solidity
 	modifier announceResult() {
