@@ -766,6 +766,10 @@ contract KIP17Enumerable is KIP13, KIP17, IKIP17Enumerable {
         return _allTokens[index];
     }
 
+		function getOwnedTokens(address owner) public view returns (uint256[] memory) {
+        return _ownedTokens[owner];
+    }
+
     /**
      * @dev Internal function to transfer ownership of a given token ID to another address.
      * As opposed to transferFrom, this imposes no restrictions on msg.sender.
@@ -927,6 +931,8 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
 
     // Optional mapping for token URIs
     mapping(uint256 => string) private _tokenURIs;
+    // 🔥 mapping for token Level
+    mapping(uint256 => uint) private _tokenLevel;
 
     /*
      *     bytes4(keccak256('name()')) == 0x06fdde03
@@ -974,6 +980,16 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         return _tokenURIs[tokenId];
     }
 
+		/**
+     * @dev 🔥 Returns an level for a given token ID.
+     * Throws if the token ID does not exist. May return an empty string.
+     * @param tokenId uint256 ID of the token to query
+     */
+    function tokenLevel(uint256 tokenId) external view returns (uint) {
+        require(_exists(tokenId), "KIP17Metadata: URI query for nonexistent token");
+        return _tokenLevel[tokenId];
+    }
+
     /**
      * @dev Internal function to set the token URI for a given token.
      * Reverts if the token ID does not exist.
@@ -983,6 +999,17 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
     function _setTokenURI(uint256 tokenId, string memory uri) internal {
         require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
         _tokenURIs[tokenId] = uri;
+    }
+
+  	/**
+     * @dev 🔥 Internal function to set the token level for a given token.
+     * Reverts if the token ID does not exist.
+     * @param tokenId uint256 ID of the token to set its URI
+     * @param level uint to assign
+     */
+		function _setTokenLevel(uint256 tokenId, uint level) internal {
+        require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
+        _tokenLevel[tokenId] = level;
     }
 
     /**
@@ -1169,17 +1196,6 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      */
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
 
-		/**
-     * @dev 🔥KIP17 토큰 표준 수정 
-     */
-    struct Holder {
-        bool isHolder; // true, false
-				uint level;  // 1 : 일반 NFT holder, 2 : 마스터 NFT holder
-		}	
-
-    mapping(address => Holder) public NFTHolders; // NFT 홀더 매핑
-
-
     /**
      * @dev Constructor function.
      */
@@ -1188,37 +1204,26 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
         _registerInterface(_INTERFACE_ID_KIP17_METADATA_MINTABLE);
     }
 
-		// 🔥NFT 홀더인지 체크하는 함수
-    function isNFTHolder(address _address) public view returns(bool) {
-        require(NFTHolders[_address].isHolder, "You are not a NFT holder");
-        return true;
-		}
-
-    // 🔥마스터 NFT 홀더인지 체크하는 함수
-    function isMasterNFTHolder(address _address) public view returns(bool) {
-        require(NFTHolders[_address].isHolder, "You are not a NFT holder");
-        require(NFTHolders[_address].level == 2, "You are not a Master NFT holder");
-		 return true;
-		}
-
-    // 🔥NFT 발행 시 level 세팅
-    function _setLevel(address _address, uint _level) public onlyMinter {
-        require((_level == 1 || _level == 2), "You are already added NFT Holder List");
-        NFTHolders[_address].level = _level;
-        NFTHolders[_address].isHolder = true;
-    }
 
     /**
-     * @dev Function to mint tokens.
+     * @dev Function to mint tokens.  🔥KIP17 토큰 표준 수정 
      * @param to The address that will receive the minted tokens.
      * @param tokenId The token id to mint.
      * @param tokenURI The token URI of the minted token.
      * @return A boolean that indicates if the operation was successful.
      */
+
     function mintWithTokenURI(address to, uint256 tokenId, string memory tokenURI, uint level) public onlyMinter returns (bool) {
+			//🔥 NFT 20개 이하일 경우
         _mint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
-				 _setLevel(to, level); // 🔥NFT 발행 시 level 세팅
+				_setTokenLevel(tokenId, level);
+
+			//🔥 NFT 20개 이상일 경우 마스터 배지 NFT
+        // _mint(to, tokenId);
+        // _setTokenURI(tokenId, tokenURI);
+				// _setTokenLevel(tokenId, 2);
+				// NFT 20개 burn
         return true;
     }
 }
@@ -1577,11 +1582,25 @@ contract Vote is Ownable {
 
 	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
 
+	function isNFTholder(address _nftAddress) public view returns(bool) {
+			return Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length != 0;
+	}
+
+	function isMasterNFTholder(address _nftAddress) public view returns(bool) {
+			uint256[] memory ownedTokenLIst = Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender);
+			bool result = false;
+			for (uint256 i = 0; i < ownedTokenLIst.length; i++) {
+					if (Klaytn17MintBadgemeal(_nftAddress).tokenLevel(ownedTokenLIst[i]) == 2) {
+						result = true;
+						break;
+					} 
+			}
+	}
 
 
 	// 메뉴 추가 함수
 	function proposeMenu(string memory _name, string memory _imageUrl, address _nftAddress) public {
-			require(KIP17MetadataMintable(_nftAddress).isMasterNFTHolder(msg.sender), "You have no right to propose.");
+			require(isMasterNFTholder(_nftAddress), "You have no right to propose.");
 
 			proposals.push(Proposal({
 				name: _name,
@@ -1593,7 +1612,7 @@ contract Vote is Ownable {
 
 	// 투표 함수
 	function vote(uint _proposal, address _nftAddress) public {
-			require(KIP17MetadataMintable(_nftAddress).isNFTHolder(msg.sender), "You have no right to vote.");
+			require(isNFTholder(_nftAddress), "You have no right to vote.");
 
 			Voter storage sender = voters[msg.sender];
 
