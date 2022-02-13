@@ -1567,7 +1567,6 @@ contract Vote is Ownable {
 	struct Proposal {
 		string name;   // 메뉴 이름
 		uint voteCount; // 투표 받은 수
-		string imageUrl; // 메뉴 이미지 url
 		address proposer; // 메뉴 제안자
 
 	}
@@ -1599,13 +1598,12 @@ contract Vote is Ownable {
 	}
 
 	// 메뉴 추가 함수
-	function proposeMenu(string memory _name, string memory _imageUrl, address _nftAddress) public {
+	function proposeMenu(string memory _name, address _nftAddress) public {
 			require(isMasterNFTholder(_nftAddress), "You have no right to propose.");
 
 			proposals.push(Proposal({
 				name: _name,
 				voteCount: 0,
-				imageUrl: _imageUrl,
 				proposer: msg.sender
 			}));
 	}
@@ -1643,7 +1641,6 @@ contract Vote is Ownable {
 
 			winnerProposals.push(Proposal({
 			name: winner.name,
-			imageUrl: winner.imageUrl,
 			proposer: winner.proposer,
 			voteCount: winner.voteCount
 			}));
