@@ -1552,3 +1552,90 @@ contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintabl
         KIP17Full(_name, _symbol) public {
     }
 }
+
+
+
+pragma solidity >=0.5.6;
+
+contract Vote is Ownable {
+
+	struct Proposal {
+		string name;   // 메뉴 이름
+		uint voteCount; // 투표 받은 수
+		string imageUrl; // 메뉴 이미지 url
+		address proposer; // 메뉴 제안자
+
+	}
+	struct Voter {
+		bool voted;  // 투표 진행 여부 (true,false)
+		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
+	}
+		
+	mapping(address => Voter) public voters; // 투표자 매핑
+	
+	Proposal[] public proposals; // 메뉴 리스트
+
+	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
+
+
+
+	// 메뉴 추가 함수
+	function proposeMenu(string memory _name, string memory _imageUrl, address _nftAddress) public {
+			require(KIP17MetadataMintable(_nftAddress).isMasterNFTHolder(msg.sender), "You have no right to propose.");
+
+			proposals.push(Proposal({
+				name: _name,
+				voteCount: 0,
+				imageUrl: _imageUrl,
+				proposer: msg.sender
+			}));
+	}
+
+	// 투표 함수
+	function vote(uint _proposal, address _nftAddress) public {
+			require(KIP17MetadataMintable(_nftAddress).isNFTHolder(msg.sender), "You have no right to vote.");
+
+			Voter storage sender = voters[msg.sender];
+
+			require(!sender.voted, "Already voted.");
+
+			sender.voted = true;
+			sender.vote = _proposal;
+
+			proposals[_proposal].voteCount++;
+	}
+
+	// 가장 많은 득표수를 얻은 메뉴 index 출력하는 함수
+	function winningProposal() public view returns (uint winningProposal_) {
+			uint winningVoteCount = 0;
+			for (uint p = 0; p < proposals.length; p++) {
+					if (proposals[p].voteCount > winningVoteCount) {
+							winningVoteCount = proposals[p].voteCount;
+							winningProposal_ = p;
+					}
+			}
+	}
+
+	// 가장 많은 득표수를 얻은 메뉴 이름을 리턴하는 함수
+	function winnerName() public view returns (string memory winnerName_) {
+			winnerName_ = proposals[winningProposal()].name;
+	}
+
+  // 가장 많은 득표수를 얻은 메뉴 추가 함수 - 호출 조건: 투표가 마감되는 시점.
+	function addWinnerProposal() public onlyOwner {
+			Proposal storage winner = proposals[winningProposal()];
+
+			winnerProposals.push(Proposal({
+			name: winner.name,
+			imageUrl: winner.imageUrl,
+			proposer: winner.proposer,
+			voteCount: winner.voteCount
+			}));
+
+			// proposals 초기화
+			delete proposals;
+
+			// delete voters;
+
+	}
+}
