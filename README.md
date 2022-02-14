@@ -176,7 +176,11 @@ function winnerName() public view returns (string memory winnerName_) {
 - 기존 메뉴 리스트는 DB에 있고, 투표로 추가된 메뉴 리스트는 vote 컨트랙트의 `winnerProposals`변수에 담긴다.
 - 호츨 조건: 투표가 마감되는 시점에 백엔드에서 호출한다.
 - 백엔드에서 DB의 메뉴 리스트에 `winnerProposals`를 추가한다.
-- ‼️보완해야할 사항 : voters를 초기화하는 방법을 찾아봐야한다.
+- ‼️보완해야할 사항 
+  - voters를 초기화하는 방법을 찾아봐야한다.
+  - require: voteCount가 메뉴 NFT 소유자의 과반수 이상
+  - 메뉴 제안자 베네핏 제공: NFT 메타데이터에 제안자의 주소 추가
+  - 투표자에게 베네핏 제공: 메뉴 NFT 1개 랜덤 발행
 ```sol
 // - 호출 조건: 투표가 마감되는 시점.
 function addWinnerProposal() public onlyOwner {
