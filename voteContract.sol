@@ -33,22 +33,7 @@ contract BadgemealNFT {
 		return nftHolders[_address];
 	}
 
-	// 채택된 메뉴 추가 함수
-	function addWinnerProposal(string memory _name, string memory _imageUrl, address _proposer, address _voteContract) public onlyOwner {
-		winnerProposals.push(Proposal({
-		name: _name,
-		imageUrl: _imageUrl,
-		proposer: _proposer,
-		voteContract: _voteContract
-		}));
-	}
-
-	// 채택된 메뉴 리스트 확인 함수
-	// function getWinnerProposals() public view returns(Proposal[] memory _winnerProposals) {
-	// 	_winnerProposals = winnerProposals;
-	// }
-
-	// NFT 홀더 추가 함수
+    // NFT 홀더 추가 함수
 	function addNFTHolder(address _address) private {
 		require(
 			!nftHolders[_address],
@@ -64,6 +49,21 @@ contract BadgemealNFT {
 			addNFTHolder(_addresses[i]);
 		}
 	}
+
+	// 채택된 메뉴 추가 함수
+	function addWinnerProposal(string memory _name, string memory _imageUrl, address _proposer, address _voteContract) public onlyOwner {
+		winnerProposals.push(Proposal({
+		name: _name,
+		imageUrl: _imageUrl,
+		proposer: _proposer,
+		voteContract: _voteContract
+		}));
+	}
+
+	// 채택된 메뉴 리스트 확인 함수
+	// function getWinnerProposals() public view returns(Proposal[] memory _winnerProposals) {
+	// 	_winnerProposals = winnerProposals;
+	// }
 
 }
 
