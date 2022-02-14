@@ -1,5 +1,16 @@
 # BadgeMeal Smart Contract
 
+## 요약 설명
+- deployer -> owner 용어 변경
+- require문에 컨트랙트 소유권자, 투표자 검증이 반복되어 함수변경자로 적용 (onlyOwner, onlyVoter)
+- startTime, endTime 적용
+  - 현재 시간이 start, end time 사이에 있을 때만 vote 함수 실행 가능 => voteOpen(함수변경자)
+  - 그 외 함수는 투표 시작시간 전에 배포해놓고 투표자를 세팅할 수도 있으므로 시간 검증 제외
+- 임시 BadgemealNFT 컨트랙트를 통해 voters 매핑에 추가 전 NFT 홀더인지 검증
+- Vote Contract를 한번 배포해서 계속 쓰는 것이 아니라 투표 때마다 새로운 Vote Contract를 배포해서 사용 (투표 히스토리 관리, 투명성)
+- 투표 종료 시간 체크는 백엔드에서 스케쥴러로 체크. 백엔드에서 winnerProposal 확인 후 DB에 저장하고  BadgemealNFT 컨트랙트에 addWinnerProposals 함수로 투표에서 채택된 메뉴를 추가
+- 이미지 URL은 기본 메뉴 이미지를 베이스 이미지에 글자만 다르게 넣는 걸로 결정되었다고 기억해서 넣음.
+
 ## BadgemealNFT (임시 NFT 컨트랙트)
 
 1. 필요한 구조체 및 변수 선언
@@ -73,17 +84,6 @@ function addWinnerProposal(string memory _name, string memory _imageUrl, address
 
 
 ## Vote 컨트랙트
-
-#### 요약 설명
-- deployer -> owner 용어 변경
-- require문에 컨트랙트 소유권자, 투표자 검증이 반복되어 함수변경자로 적용 (onlyOwner, onlyVoter)
-- startTime, endTime 적용
-  - 현재 시간이 start, end time 사이에 있을 때만 vote 함수 실행 가능 => voteOpen(함수변경자)
-  - 그 외 함수는 투표 시작시간 전에 배포해놓고 투표자를 세팅할 수도 있으므로 시간 검증 제외
-- 임시 BadgemealNFT 컨트랙트를 통해 voters 매핑에 추가 전 NFT 홀더인지 검증
-- Vote Contract를 한번 배포해서 계속 쓰는 것이 아니라 투표 때마다 새로운 Vote Contract를 배포해서 사용 (투표 히스토리 관리, 투명성)
-- 투표 종료 시간 체크는 백엔드에서 스케쥴러로 체크. 백엔드에서 winnerProposal 확인 후 DB에 저장하고  BadgemealNFT 컨트랙트에 addWinnerProposals 함수로 투표에서 채택된 메뉴를 추가
-- 이미지 URL은 기본 메뉴 이미지를 베이스 이미지에 글자만 다르게 넣는 걸로 결정되었다고 기억해서 넣음.
 
 1. 필요한 구조체 및 변수 선언
 ```sol
@@ -181,7 +181,8 @@ function proposeMenu(string memory name, string memory imageUrl) public {
 }
 ```
 
-5. 투표자 추가
+5. 투표자 추가  
+   
 5-1. 투표자 단일 추가 함수
 - require : NFT 소유자, 투표자 매핑에 아직 등록되지 않은 주소
 - params: 투표자 주소, 뱃지밀 NFT 컨트랙트 주소
