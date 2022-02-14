@@ -8,6 +8,8 @@
 2. _setTokenLevel 함수 추가
 `_setTokenLevel` 함수를 **KIP17MetadataMintable** 컨트랙트 내에서 사용한다.
 
+3. _burn 함수에 _tokenLevel도 초기화 하는 매소드 추가
+토큰을 삭제할 때 _tokenURIs와 함께 _tokenLevel도 삭제한다.
 ```sol
 mapping(uint256 => uint) private _tokenLevel;
 
@@ -30,6 +32,19 @@ function tokenLevel(uint256 tokenId) external view returns (uint) {
 function _setTokenLevel(uint256 tokenId, uint level) internal {
     require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
     _tokenLevel[tokenId] = level;
+}
+
+function _burn(address owner, uint256 tokenId) internal {
+    super._burn(owner, tokenId);
+
+    // Clear metadata (if any)
+    if (bytes(_tokenURIs[tokenId]).length != 0) {
+        delete _tokenURIs[tokenId];
+    
+    // 🔥 Clear level 
+    if (bytes(_tokenLevel[tokenId]).length != 0) {
+        delete _tokenLevel[tokenId];
+    }
 }
 ```
 

@@ -1026,7 +1026,7 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
         }
-		// Clear level 
+		// 🔥 Clear level 
         if (bytes(_tokenLevel[tokenId]).length != 0) {
             delete _tokenLevel[tokenId];
         }
