@@ -52,25 +52,20 @@ string  memory nftMetadata
 
 ***
  #### mintWithKlay : NFT 발행(수수료0.5Klay)
-```Solidity
-function mintNft(
+```sol  
+//mint 유료, 0.5 klay 
+    function mintWithKlay(
+        address to,
+        uint256 tokenId,
+        string memory nftMetadata,
+        address payable receiver // klay받는 주소
+    ) public payable returns (bool) {
 
-address to,
-
-uint256 tokenId,
-
-string  memory nftMetadata
-
-)  public  returns  (bool)  {
-
-	_mint(to, tokenId);
-
-	_setTokenURI(tokenId, nftMetadata);
-
-	return  true;
-
-}
-```  
+        receiver.transfer(10**17*5);
+        mintNft(to,tokenId, nftMetadata);
+        return true;
+    }
+``` 
 	
 ***
 #### mintMasterBadge : 마스터 뱃지 발행
