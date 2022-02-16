@@ -1651,7 +1651,7 @@ contract Vote is Ownable {
 			winnerProposals.push(winner);
 
 			// event 발생
-			emit AddWinner(winner.name, winner.voteCount, winner.proposer)
+			emit AddWinner(winner.name, winner.voteCount, winner.proposer);
 
 			// proposals 초기화
 			delete proposals;
