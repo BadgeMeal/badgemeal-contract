@@ -1602,6 +1602,12 @@ contract Vote is Ownable {
         _;
     }
 
+	// 채택된 메뉴를 추가 가능한 시간인지 검증
+	modifier addProposeAvailable() {
+		require(now > voteStartTime + 1 days, "Voting is currently underway.");
+        _;
+	}
+
 
     // NFT 소유자인지 판단하는 함수
     function isNFTholder(address _nftAddress) public view returns(bool) {
@@ -1662,7 +1668,7 @@ contract Vote is Ownable {
 	}
 
     // NFT 홀더 과반수 이상 & 가장 많은 득표수를 얻은 메뉴 추가 함수 - 호출 조건: 투표가 마감되는 시점.
-	function addWinnerProposal(address _nftAddress) public onlyOwner {
+	function addWinnerProposal(address _nftAddress) public onlyOwner addProposeAvailable {
 			Proposal storage winner = proposals[winningProposal()];
             require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
 
