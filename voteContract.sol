@@ -1,32 +1,125 @@
+// File: @openzeppelin/contracts/GSN/Context.sol
+
+pragma solidity ^0.5.0;
+
+/*
+ * @dev Provides information about the current execution context, including the
+ * sender of the transaction and its data. While these are generally available
+ * via msg.sender and msg.data, they should not be accessed in such a direct
+ * manner, since when dealing with GSN meta-transactions the account sending and
+ * paying for execution may not be the actual sender (as far as an application
+ * is concerned).
+ *
+ * This contract is only required for intermediate, library-like contracts.
+ */
+contract Context {
+	// Empty internal constructor, to prevent people from mistakenly deploying
+	// an instance of this contract, which should be used via inheritance.
+	constructor () internal { }
+	// solhint-disable-previous-line no-empty-blocks
+
+	function _msgSender() internal view returns (address payable) {
+		return msg.sender;
+	}
+
+	function _msgData() internal view returns (bytes memory) {
+		this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
+		return msg.data;
+	}
+}
+
+// File: @openzeppelin/contracts/ownership/Ownable.sol
+
+pragma solidity ^0.5.0;
+
+/**
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
+ */
+contract Ownable is Context {
+	address private _owner;
+
+	event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+	/**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+	constructor () internal {
+		address msgSender = _msgSender();
+		_owner = msgSender;
+		emit OwnershipTransferred(address(0), msgSender);
+	}
+
+	/**
+     * @dev Returns the address of the current owner.
+     */
+	function owner() public view returns (address) {
+		return _owner;
+	}
+
+	/**
+     * @dev Throws if called by any account other than the owner.
+     */
+	modifier onlyOwner() {
+		require(isOwner(), "Ownable: caller is not the owner");
+		_;
+	}
+
+	/**
+     * @dev Returns true if the caller is the current owner.
+     */
+	function isOwner() public view returns (bool) {
+		return _msgSender() == _owner;
+	}
+
+	/**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions anymore. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby removing any functionality that is only available to the owner.
+     */
+	function renounceOwnership() public onlyOwner {
+		emit OwnershipTransferred(_owner, address(0));
+		_owner = address(0);
+	}
+
+	/**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+	function transferOwnership(address newOwner) public onlyOwner {
+		_transferOwnership(newOwner);
+	}
+
+	/**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     */
+	function _transferOwnership(address newOwner) internal {
+		require(newOwner != address(0), "Ownable: new owner is the zero address");
+		emit OwnershipTransferred(_owner, newOwner);
+		_owner = newOwner;
+	}
+}
+
 pragma solidity ^0.5.6;
 
-contract BadgemealNFT {
+contract BadgemealNFT is Ownable {
 
 	struct Proposal {
 		string name;   // 메뉴 이름
-		string imageUrl; // 메뉴 이미지 url
 		address proposer; // 메뉴 제안자
 		address voteContract; // 투표 컨트랙트 address
 	}
 
-	address public owner; // 컨트랙트 소유자
-
 	mapping(address => bool) public nftHolders; // NFT 홀더 매핑
 
 	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
-
-	constructor() public {
-		owner = msg.sender;
-	}
-
-	// 소유자 체크 함수 변경자
-	modifier onlyOwner() {
-		require(
-			msg.sender == owner,
-			"msg sender is not a owner."
-		);
-		_;
-	}
 
 	// NFT 홀더 체크 함수
 	function isHolder(address _address) public view returns(bool) {
@@ -34,10 +127,9 @@ contract BadgemealNFT {
 	}
 
 	// 채택된 메뉴 추가 함수
-	function addWinnerProposal(string memory _name, string memory _imageUrl, address _proposer, address _voteContract) public onlyOwner {
+	function addWinnerProposal(string memory _name, address _proposer, address _voteContract) public onlyOwner {
 		winnerProposals.push(Proposal({
 		name: _name,
-		imageUrl: _imageUrl,
 		proposer: _proposer,
 		voteContract: _voteContract
 		}));
@@ -67,22 +159,20 @@ contract BadgemealNFT {
 
 }
 
-contract Vote {
+pragma solidity ^0.5.6;
+
+contract Vote is Ownable {
 
 	struct Proposal {
 		string name;   // 메뉴 이름
 		uint voteCount; // 투표 받은 수
-		string imageUrl; // 메뉴 이미지 url
 		address proposer; // 메뉴 제안자
 	}
 
 	struct Voter {
-		bool exist;  // 투표자 존재 여부 (true,false)
 		bool voted;  // 투표 진행 여부 (true,false)
 		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
 	}
-
-	address public owner; // 컨트랙트 소유자
 
 	mapping(address => Voter) public voters; // 투표자 매핑
 
@@ -97,27 +187,8 @@ contract Vote {
 			_startTime < _endTime,
 			"start time needs to be lower than end time"
 		);
-		owner = msg.sender;
 		startTime = _startTime;
 		endTime = _endTime;
-	}
-
-	// 소유자 체크 함수 변경자
-	modifier onlyOwner() {
-		require(
-			msg.sender == owner,
-			"msg sender is not a owner."
-		);
-		_;
-	}
-
-	// 투표자 체크 함수 변경자
-	modifier onlyVoter() {
-		require(
-			isVoter(msg.sender),
-			"msg sender is not a registered voter."
-		);
-		_;
 	}
 
 	// 투표 기간 유효성 체크 함수
@@ -129,13 +200,8 @@ contract Vote {
 		_;
 	}
 
-	// 투표자 체크 함수
-	function isVoter(address _address) public view returns(bool) {
-		return voters[_address].exist;
-	}
-
 	// 메뉴 추가 함수
-	function proposeMenu(string memory name, string memory imageUrl) public {
+	function proposeMenu(string memory name) public {
 		/** 🔥 pseudocode 추가
 		 	[require] msg.sender == 뱃지밀 마스터 NFT 소유자, "메뉴 추가 제안 권한이 없습니다."
 		*/
@@ -143,38 +209,41 @@ contract Vote {
 		proposals.push(Proposal({
 		name: name,
 		voteCount: 0,
-		imageUrl: imageUrl,
 		proposer: msg.sender
 		}));
 	}
 
 	// 투표자 추가 함수
-	function addVoter(address _address, address nftAddress) private {
-		require(
-			BadgemealNFT(nftAddress).isHolder(_address),
-			concat(toString(_address), " is not NFT Holder.")
-		);
-		require(
-			!voters[_address].exist,
-			concat(toString(_address), " is already added voter address.")
-		);
-
-		voters[_address] = Voter({
-		exist: true,
-		voted: false,
-		vote: 0
-		});
-	}
+	//	function addVoter(address _address, address nftAddress) private {
+	//		require(
+	//			BadgemealNFT(nftAddress).isHolder(_address),
+	//			concat(toString(_address), " is not NFT Holder.")
+	//		);
+	//		require(
+	//			!voters[_address].exist,
+	//			concat(toString(_address), " is already added voter address.")
+	//		);
+	//
+	//		voters[_address] = Voter({
+	//			exist: true,
+	//			voted: false,
+	//			vote: 0
+	//		});
+	//	}
 
 	// 투표자 리스트 추가 함수
-	function addVoters(address[] memory _addresses, address nftAddress) public onlyOwner {
-		for (uint i = 0; i < _addresses.length; i++) {
-			addVoter(_addresses[i], nftAddress);
-		}
-	}
+	//	function addVoters(address[] memory _addresses, address nftAddress) public onlyOwner {
+	//		for (uint i = 0; i < _addresses.length; i++) {
+	//			addVoter(_addresses[i], nftAddress);
+	//		}
+	//	}
 
 	// 투표 함수
-	function vote(uint proposal) public onlyVoter voteOpen {
+	function vote(uint proposal, address nftAddress) public voteOpen {
+		require(
+			BadgemealNFT(nftAddress).isHolder(msg.sender),
+			concat(toString(msg.sender), " is not NFT Holder.")
+		);
 		require(!voters[msg.sender].voted, "Already voted.");
 
 		voters[msg.sender].voted = true;
