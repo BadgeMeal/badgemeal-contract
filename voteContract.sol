@@ -1643,10 +1643,10 @@ contract Vote is Ownable {
 			winnerName_ = proposals[winningProposal()].name;
 	}
 
-    // 가장 많은 득표수를 얻은 메뉴 추가 함수 - 호출 조건: 투표가 마감되는 시점.
+    // NFT 홀더 과반수 이상 & 가장 많은 득표수를 얻은 메뉴 추가 함수 - 호출 조건: 투표가 마감되는 시점.
 	function addWinnerProposal(address _nftAddress) public onlyOwner {
 			Proposal storage winner = proposals[winningProposal()];
-            require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length / 2), "The proposal did not win majority of the votes.");
+            require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
 
 			winnerProposals.push(winner);
 

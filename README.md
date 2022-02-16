@@ -192,7 +192,7 @@ event AddWinner(string indexed name, uint indexed voteCount, address proposer);
 ```sol
 function addWinnerProposal(address _nftAddress) public onlyOwner {
     Proposal storage winner = proposals[winningProposal()];
-          require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length / 2), "The proposal did not win majority of the votes.");
+          require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
 
     winnerProposals.push(winner);
 
