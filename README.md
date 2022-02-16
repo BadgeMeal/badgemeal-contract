@@ -18,7 +18,7 @@ mapping(uint256 => uint) private _tokenLevel;
   * Throws if the token ID does not exist. May return an empty string.
   * @param tokenId uint256 ID of the token to query
   */
-function tokenLevel(uint256 tokenId) external view returns (uint) {
+function tokenLevel(uint256 tokenId) public view returns (uint) {
     require(_exists(tokenId), "KIP17Metadata: URI query for nonexistent token");
     return _tokenLevel[tokenId];
 }
@@ -40,9 +40,10 @@ function _burn(address owner, uint256 tokenId) internal {
     // Clear metadata (if any)
     if (bytes(_tokenURIs[tokenId]).length != 0) {
         delete _tokenURIs[tokenId];
+    }
     
     // 🔥 Clear level 
-    if (bytes(_tokenLevel[tokenId]).length != 0) {
+    if (_tokenLevel[tokenId] > 0) {
         delete _tokenLevel[tokenId];
     }
 }
@@ -91,6 +92,8 @@ struct Voter {
 }
   
 mapping(address => Voter) public voters; // 투표자 매핑
+
+address[] internal votersAddressList; // 
 
 Proposal[] public proposals; // 메뉴 리스트
 
@@ -144,10 +147,12 @@ function proposeMenu(string memory _name, address _nftAddress) public {
 function vote(uint _proposal, address _nftAddress) public {
     require(isNFTholder(_nftAddress), "You have no right to vote");
     require(!voters[msg.sender].voted, "Already voted.");
+          require(_proposal < proposals.length, "Wrong index.");
 
     voters[msg.sender].voted = true;
     voters[msg.sender].vote = _proposal;
-
+          
+          votersAddressList.push(msg.sender);
     proposals[_proposal].voteCount++;
 }
 ```
@@ -175,26 +180,33 @@ function winnerName() public view returns (string memory winnerName_) {
 7. 가장 많은 득표수를 얻은 메뉴를 향후 메뉴 리스트에 추가하는 함수
 - 기존 메뉴 리스트는 DB에 있고, 투표로 추가된 메뉴 리스트는 vote 컨트랙트의 `winnerProposals`변수에 담긴다.
 - 호츨 조건: 투표가 마감되는 시점에 백엔드에서 호출한다.
-- 백엔드에서 DB의 메뉴 리스트에 `winnerProposals`를 추가한다.
+- require: voteCount가 메뉴 NFT 소유자의 과반수 이상
+- addWinnerProposal 가 발생하면 event를 발생시켜, 백엔드에서 이를 인지 후 DB의 메뉴 리스트에 `winnerProposals`를 추가한다.
+```sol
+event AddWinner(string indexed name, uint indexed voteCount, address proposer);
+```
 - ‼️보완해야할 사항 
-  - voters를 초기화하는 방법을 찾아봐야한다.
-  - require: voteCount가 메뉴 NFT 소유자의 과반수 이상
   - 메뉴 제안자 베네핏 제공: NFT 메타데이터에 제안자의 주소 추가
   - 투표자에게 베네핏 제공: 메뉴 NFT 1개 랜덤 발행
-```sol
-// - 호출 조건: 투표가 마감되는 시점.
-function addWinnerProposal() public onlyOwner {
-    Proposal storage winner = proposals[winningProposal()];
 
-    winnerProposals.push(Proposal({
-    name: winner.name,
-    proposer: winner.proposer,
-    voteCount: winner.voteCount
-    }));
+```sol
+function addWinnerProposal(address _nftAddress) public onlyOwner {
+    Proposal storage winner = proposals[winningProposal()];
+          require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length / 2), "The proposal did not win majority of the votes.");
+
+    winnerProposals.push(winner);
+
+    // event 발생
+    emit AddWinner(winner.name, winner.voteCount, winner.proposer)
 
     // proposals 초기화
     delete proposals;
+    // voters 초기화;
+          for (uint256 i = 0; i < votersAddressList.length; i++) {
+            voters[votersAddressList[i]].voted = false;
+            voters[votersAddressList[i]].vote = 0;
+    }
+          delete votersAddressList;
 
-    // voters 초기화
 }
 ```

@@ -985,7 +985,7 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
      * Throws if the token ID does not exist. May return an empty string.
      * @param tokenId uint256 ID of the token to query
      */
-    function tokenLevel(uint256 tokenId) external view returns (uint) {
+    function tokenLevel(uint256 tokenId) public view returns (uint) {
         require(_exists(tokenId), "KIP17Metadata: URI query for nonexistent token");
         return _tokenLevel[tokenId];
     }
@@ -1027,7 +1027,7 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
             delete _tokenURIs[tokenId];
         }
 		// 🔥 Clear level 
-        if (bytes(_tokenLevel[tokenId]).length != 0) {
+        if (_tokenLevel[tokenId] > 0) {
             delete _tokenLevel[tokenId];
         }
     }
@@ -1567,39 +1567,41 @@ contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintabl
 pragma solidity >=0.5.6;
 
 contract Vote is Ownable {
-
 	struct Proposal {
 		string name;   // 메뉴 이름
 		uint voteCount; // 투표 받은 수
 		address proposer; // 메뉴 제안자
-
 	}
 	struct Voter {
 		bool voted;  // 투표 진행 여부 (true,false)
 		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
 	}
-		
-	mapping(address => Voter) public voters; // 투표자 매핑
-	
-	Proposal[] public proposals; // 메뉴 리스트
 
+	mapping(address => Voter) public voters; // 투표자 매핑
+	address[] internal votersAddressList; // 투표자 주소 리스트
+	Proposal[] public proposals; // 메뉴 리스트
 	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
 
-	function isNFTholder(address _nftAddress) public view returns(bool) {
-			return Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length != 0;
-	}
+    event AddWinner(string indexed name, uint indexed voteCount, address proposer);
 
-	function isMasterNFTholder(address _nftAddress) public view returns(bool) {
-			uint256[] memory ownedTokenLIst = Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender);
-			bool result = false;
-			for (uint256 i = 0; i < ownedTokenLIst.length; i++) {
-					if (Klaytn17MintBadgemeal(_nftAddress).tokenLevel(ownedTokenLIst[i]) == 2) {
-						result = true;
-						break;
-					} 
-			}
-			return result;
-	}
+    // NFT 소유자인지 판단하는 함수
+    function isNFTholder(address _nftAddress) public view returns(bool) {
+        return Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length != 0;
+    }
+
+    // 마스터 NFT 소유자인지 판단하는 함수
+    function isMasterNFTholder(address _nftAddress) public view returns(bool) {
+        uint256[] memory ownedTokenLIst = Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender);
+        bool result = false;
+        for (uint256 i = 0; i < ownedTokenLIst.length; i++) {
+            if (Klaytn17MintBadgemeal(_nftAddress).tokenLevel(ownedTokenLIst[i]) == 2) {
+            result = true;
+            break;
+            } 
+        }
+        return result;
+    }
+
 
 	// 메뉴 추가 함수
 	function proposeMenu(string memory _name, address _nftAddress) public {
@@ -1616,10 +1618,12 @@ contract Vote is Ownable {
 	function vote(uint _proposal, address _nftAddress) public {
 			require(isNFTholder(_nftAddress), "You have no right to vote");
 			require(!voters[msg.sender].voted, "Already voted.");
+            require(_proposal < proposals.length, "Wrong index.");
 
 			voters[msg.sender].voted = true;
 			voters[msg.sender].vote = _proposal;
-
+            
+            votersAddressList.push(msg.sender);
 			proposals[_proposal].voteCount++;
 	}
 
@@ -1639,20 +1643,24 @@ contract Vote is Ownable {
 			winnerName_ = proposals[winningProposal()].name;
 	}
 
-  // 가장 많은 득표수를 얻은 메뉴 추가 함수 - 호출 조건: 투표가 마감되는 시점.
-	function addWinnerProposal() public onlyOwner {
+    // 가장 많은 득표수를 얻은 메뉴 추가 함수 - 호출 조건: 투표가 마감되는 시점.
+	function addWinnerProposal(address _nftAddress) public onlyOwner {
 			Proposal storage winner = proposals[winningProposal()];
+            require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length / 2), "The proposal did not win majority of the votes.");
 
-			winnerProposals.push(Proposal({
-			name: winner.name,
-			proposer: winner.proposer,
-			voteCount: winner.voteCount
-			}));
+			winnerProposals.push(winner);
+
+			// event 발생
+			emit AddWinner(winner.name, winner.voteCount, winner.proposer)
 
 			// proposals 초기화
 			delete proposals;
-
-			// delete voters;
+			// voters 초기화;
+            for (uint256 i = 0; i < votersAddressList.length; i++) {
+              voters[votersAddressList[i]].voted = false;
+              voters[votersAddressList[i]].vote = 0;
+			}
+            delete votersAddressList;
 
 	}
 }
