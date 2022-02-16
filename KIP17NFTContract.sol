@@ -1127,7 +1127,8 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
 
     // Optional mapping for token URIs
     mapping(uint256 => string) private _tokenURIs;
-
+    // 🔥 mapping for token Level
+    mapping(uint256 => uint) private _tokenLevel;
     /*
      *     bytes4(keccak256('name()')) == 0x06fdde03
      *     bytes4(keccak256('symbol()')) == 0x95d89b41
@@ -1177,6 +1178,21 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         return _tokenURIs[tokenId];
     }
 
+	/**
+     * @dev 🔥 Returns an level for a given token ID.
+     * Throws if the token ID does not exist. May return an empty string.
+     * @param tokenId uint256 ID of the token to query
+     */
+    function tokenLevel(uint256 tokenId) external view returns (uint) {
+        require(_exists(tokenId), "KIP17Metadata: URI query for nonexistent token");
+        return _tokenLevel[tokenId];
+    }
+
+    //소유한 토큰 종류 확인(맞으면 true, 아니면 false)
+    function _ownTokenLevel(uint256 tokenId, uint level) internal returns (bool){
+        return _tokenLevel[tokenId]==level;
+    }
+
     /**
      * @dev Internal function to set the token URI for a given token.
      * Reverts if the token ID does not exist.
@@ -1192,19 +1208,42 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
     }
 
     /**
+     * @dev 🔥 Internal function to set the token level for a given token.
+     * Reverts if the token ID does not exist.
+     * @param tokenId uint256 ID of the token to set its URI
+     * @param level uint to assign
+     */
+    function _setTokenLevel(uint256 tokenId, uint level) internal {
+        require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
+        _tokenLevel[tokenId] = level;
+    }
+    /**
      * @dev Internal function to burn a specific token.
      * Reverts if the token does not exist.
      * Deprecated, use _burn(uint256) instead.
      * @param owner owner of the token to burn
      * @param tokenId uint256 ID of the token being burned by the msg.sender
      */
+     //마스터 발급을 위한 기존 메뉴 NFT삭제 
+    function _burnForMasterNFT(address owner, uint256 tokenId, uint level) internal{
+        if(level == _tokenLevel[tokenId])
+        {
+            _burn(owner, tokenId);
+        }
+    }
+    
     function _burn(address owner, uint256 tokenId) internal {
+        
         super._burn(owner, tokenId);
 
         // Clear metadata (if any)
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
         }
+        if (_tokenLevel[tokenId] > 0) {
+            delete _tokenLevel[tokenId];
+        }
+        
     }
 }
 
@@ -1336,7 +1375,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
     
     //yun_add 유저가 소유한 id
-    uint256[] userid;
+    uint256[] _userid;
 
     /**
      * @dev Constructor function.
@@ -1353,68 +1392,198 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      * @param tokenURI The token URI of the minted token.
      * @return A boolean that indicates if the operation was successful.
      */
+     // tokenLevel 추가
     function mintWithTokenURI(
         address to,
         uint256 tokenId,
-        string memory tokenURI
+        string memory tokenURI,
+        uint level
     ) public onlyMinter returns (bool) {
         _mint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
+        _setTokenLevel(tokenId, level);
         return true;
     }
-    //mint 무료 3회
-    //onlyMinter 삭제
-    function mintNft(
-        address to,
-        uint256 tokenId,
-        string memory nftMetadata
-    ) public returns (bool) {
-        _mint(to, tokenId);
-        _setTokenURI(tokenId, nftMetadata);
-        return true;
-    }
-   
+    
     //mint 유료, 0.5 klay 
     function mintWithKlay(
         address to,
         uint256 tokenId,
-        string memory nftMetadata,
-        address payable receiver // klay받는 주소
+        string memory tokenURI,
+        uint level,
+        address payable reciver
     ) public payable returns (bool) {
-
-        receiver.transfer(10**17*5);
-        mintNft(to,tokenId, nftMetadata);
+        // reciver = Ownable(NFT).owner();
+        reciver.transfer(10**17*5);
+        mintWithTokenURI(to,tokenId, tokenURI,level);
         return true;
     }
-    //마스터 뱃지 mint (수정사항 : 마스터 뱃지와 일반 뱃지 구분 필요)
+    //마스터 뱃지 mint (수정사항 : 마스터 뱃지레벨, 일반 뱃지(메뉴별 레벨)로 구분)
     function mintMasterBadge(
         address to,
         uint256 tokenId,
-        string memory nftMetaData,
+        string memory tokenURI,
+        uint setLevel,
+        uint delLevel,
         address NFT
     ) public returns (bool){
         uint256 userBalance;
         userBalance = balanceOf(to);
-        //require(userBalance == 20, "You must have 20NFTs")
-        _removeOwnToken(userBalance, to, NFT);
-        //_burn(tokenId);
-        mintNft(to,tokenId, nftMetaData);
+        
+        _listOfUserToeknId(userBalance, to, NFT);
+
+        //특정 NFT(국밥 마스터 뱃지 인지)가 20개 이상 소유한지 판별
+        require(_checkMenu(delLevel, userBalance) >= 20, "You must have menu20NFTs");
+        _removeOwnToken(to, delLevel);
+        mintWithTokenURI(to,tokenId, tokenURI,setLevel);
         return true;
     }
 
-    // 소유한 전체 NFT 삭제
-    function _removeOwnToken(uint256 balance, address to,address NFT) private{
-        //유저가 가지고 있는 토큰id 리트스 확인
+    //소유한 특정메뉴 갯수 확인
+    function _checkMenu(uint level, uint256 balance) private returns(uint256){
+        uint256 result = 0;
+        for (uint256 i =0 ; i< balance; i++){
+            if(_ownTokenLevel(_userid[i], level)){
+                result++;
+            }
+        }
+        return result;
+    }
+    // 유저가 현재 소유한 전체 tokenId 리스트 생성
+    function _listOfUserToeknId(uint256 balance, address to, address NFT) private
+    {
+        _useridInit();
         for (uint256 i = 0; i < balance; i++) {
             uint256 id = KIP17Enumerable(NFT).tokenOfOwnerByIndex(to,i);
-            userid.push(id);
-        }
-        //유저가 가지고 있는 기존 NFT 삭제
-        for (uint256 i = 0; i < balance; i++) {
-            _burn(userid[i]);
+            _userid.push(id);
         }
     }
+    // 소유한 20개의 메뉴 NFT 삭제
+    function _removeOwnToken(address to, uint level) private{
 
+        //유저가 가지고 있는 기존 NFT 삭제(20개 이상을 소유할 수도 있으니 20개만 삭제)
+        for (uint256 i = 0; i < 20; i++) {
+            _burnForMasterNFT(to, _userid[i],level);
+        }
+      
+        _useridInit();
+    }
+    //_userid 초기화
+    function _useridInit() private{
+        for (uint256 i=0; i< _userid.length;i++){
+            _userid.pop;
+        }
+        
+    }
+
+}
+// File: @openzeppelin/contracts/GSN/Context.sol
+
+pragma solidity ^0.5.0;
+
+/*
+ * @dev Provides information about the current execution context, including the
+ * sender of the transaction and its data. While these are generally available
+ * via msg.sender and msg.data, they should not be accessed in such a direct
+ * manner, since when dealing with GSN meta-transactions the account sending and
+ * paying for execution may not be the actual sender (as far as an application
+ * is concerned).
+ *
+ * This contract is only required for intermediate, library-like contracts.
+ */
+contract Context {
+    // Empty internal constructor, to prevent people from mistakenly deploying
+    // an instance of this contract, which should be used via inheritance.
+    constructor () internal { }
+    // solhint-disable-previous-line no-empty-blocks
+
+    function _msgSender() internal view returns (address payable) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view returns (bytes memory) {
+        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
+        return msg.data;
+    }
+}
+
+// File: @openzeppelin/contracts/ownership/Ownable.sol
+
+pragma solidity ^0.5.0;
+
+/**
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
+ */
+contract Ownable is Context {
+    address private _owner;
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+    constructor () internal {
+        address msgSender = _msgSender();
+        _owner = msgSender;
+        emit OwnershipTransferred(address(0), msgSender);
+    }
+
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        require(isOwner(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    /**
+     * @dev Returns true if the caller is the current owner.
+     */
+    function isOwner() public view returns (bool) {
+        return _msgSender() == _owner;
+    }
+
+    /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions anymore. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby removing any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public onlyOwner {
+        emit OwnershipTransferred(_owner, address(0));
+        _owner = address(0);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public onlyOwner {
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     */
+    function _transferOwnership(address newOwner) internal {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        emit OwnershipTransferred(_owner, newOwner);
+        _owner = newOwner;
+    }
 }
 
 // File: contracts/token/KIP17/KIP17Mintable.sol
@@ -1490,13 +1659,12 @@ contract KIP17Burnable is KIP13, KIP17, MinterRole {
      * @dev Burns a specific KIP17 token.
      * @param tokenId uint256 id of the KIP17 token to be burned.
      */
-     //yun add burn 권한 소유자가 아닌 관리자로 변경
-    function burn(uint256 tokenId) public onlyMinter{
+    function burn(uint256 tokenId) public{
         //solhint-disable-next-line max-line-length
-        // require(
-        //     _isApprovedOrOwner(msg.sender, tokenId),
-        //     "KIP17Burnable: caller is not owner nor approved"
-        // );
+        require(
+            _isApprovedOrOwner(msg.sender, tokenId),
+            "KIP17Burnable: caller is not owner nor approved"
+        );
         _burn(tokenId);
     }
 }
@@ -1677,10 +1845,16 @@ contract KIP17Token is
     KIP17Mintable,
     KIP17MetadataMintable,
     KIP17Burnable,
-    KIP17Pausable
+    KIP17Pausable,
+    Ownable
 {
+     event Klaytn17Burn(address _to, uint256 tokenId);
+
     constructor(string memory name, string memory symbol)
-        public
-        KIP17Full(name, symbol)
+        KIP17Mintable()
+        KIP17MetadataMintable()
+        KIP17Burnable()
+        KIP17Pausable()
+        KIP17Full(name, symbol) public
     {}
 }
