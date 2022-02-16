@@ -1567,24 +1567,41 @@ contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintabl
 pragma solidity >=0.5.6;
 
 contract Vote is Ownable {
-	using SafeMath for uint256;
-	
+    using SafeMath for uint256;
+
 	struct Proposal {
 		string name;   // 메뉴 이름
-		uint voteCount; // 투표 받은 수
+		uint256 voteCount; // 투표 받은 수
 		address proposer; // 메뉴 제안자
 	}
 	struct Voter {
 		bool voted;  // 투표 진행 여부 (true,false)
 		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
 	}
+    struct VoteHistory {
+	    mapping(address => Voter) voters; 
+    }
 
-	mapping(address => Voter) public voters; // 투표자 매핑
-	address[] internal votersAddressList; // 투표자 주소 리스트
+    uint public proposeStartTime; // 메뉴 추가 시작 시간
+    uint public voteStartTime; // 투표 시작 시간
+
+	mapping(uint => VoteHistory) VoteHistoryMap; // voteStartTime과 투표자 매핑
 	Proposal[] public proposals; // 메뉴 리스트
 	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
 
-    event AddWinner(string indexed name, uint indexed voteCount, address proposer);
+    event AddWinner(string indexed name, uint indexed voteCount, address proposer); // 채택된 메뉴 추가할 때 쓰는 이벤트
+
+	// 메뉴 추가 가능한 시간인지 검증
+    modifier proposeAvailable() {
+        require(now >= proposeStartTime && now < proposeStartTime + 1 days, "Cannot propose now.");
+        _;
+    }
+	// 투표 가능한 시간인지 검증
+    modifier voteAvailable() {
+        require(now >= voteStartTime && now < voteStartTime + 1 days, "Cannot vote now.");
+        _;
+    }
+
 
     // NFT 소유자인지 판단하는 함수
     function isNFTholder(address _nftAddress) public view returns(bool) {
@@ -1606,7 +1623,7 @@ contract Vote is Ownable {
 
 
 	// 메뉴 추가 함수
-	function proposeMenu(string memory _name, address _nftAddress) public {
+	function proposeMenu(string memory _name, address _nftAddress) public proposeAvailable{
 			require(isMasterNFTholder(_nftAddress), "You have no right to propose.");
 
 			proposals.push(Proposal({
@@ -1617,16 +1634,15 @@ contract Vote is Ownable {
 	}
 
 	// 투표 함수
-	function vote(uint _proposal, address _nftAddress) public {
+	function vote(uint _proposal, address _nftAddress) public voteAvailable {
 			require(isNFTholder(_nftAddress), "You have no right to vote");
-			require(!voters[msg.sender].voted, "Already voted.");
-            require(_proposal < proposals.length, "Wrong index.");
+            require(!VoteHistoryMap[voteStartTime].voters[msg.sender].voted, "Already voted.");
+            require(_proposal < proposals.length && _proposal >= 0, "Wrong index.");
 
-			voters[msg.sender].voted = true;
-			voters[msg.sender].vote = _proposal;
+			VoteHistoryMap[voteStartTime].voters[msg.sender].voted = true;
+			VoteHistoryMap[voteStartTime].voters[msg.sender].vote = _proposal;
             
-            votersAddressList.push(msg.sender);
-			proposals[_proposal].voteCount.add(1);
+			proposals[_proposal].voteCount = proposals[_proposal].voteCount.add(1);
 	}
 
 	// 가장 많은 득표수를 얻은 메뉴 index 출력하는 함수
@@ -1657,12 +1673,14 @@ contract Vote is Ownable {
 
 			// proposals 초기화
 			delete proposals;
-			// voters 초기화;
-            for (uint i = 0; i < votersAddressList.length; i++) {
-              voters[votersAddressList[i]].voted = false;
-              voters[votersAddressList[i]].vote = 0;
-			}
-            delete votersAddressList;
-
 	}
+
+    // 투표 시작 시간 세팅하는 함수
+    function setVoteStartTime () public onlyOwner {
+        voteStartTime = now;
+    }
+    // 메뉴 추가 시작 시간 세팅하는 함수
+    function setProposeStartTime () public onlyOwner {
+        proposeStartTime = now;
+    }
 }

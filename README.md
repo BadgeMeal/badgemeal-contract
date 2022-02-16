@@ -79,33 +79,48 @@ contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintabl
 
 1. 필요한 구조체 및 변수 선언
 ```sol
-struct Proposal {
-  string name;   // 메뉴 이름
-  uint voteCount; // 투표 받은 수
-  string imageUrl; // 메뉴 이미지 url
-  address proposer; // 메뉴 제안자
+	struct Proposal {
+		string name;   // 메뉴 이름
+		uint256 voteCount; // 투표 받은 수
+		address proposer; // 메뉴 제안자
+	}
+	struct Voter {
+		bool voted;  // 투표 진행 여부 (true,false)
+		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
+	}
+  struct VoteHistory {
+    mapping(address => Voter) voters; 
+  }
 
-}
-struct Voter {
-  bool voted;  // 투표 진행 여부 (true,false)
-  uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
-}
-  
-mapping(address => Voter) public voters; // 투표자 매핑
+  uint public proposeStartTime; // 메뉴 추가 시작 시간
+  uint public voteStartTime; // 투표 시작 시간
 
-address[] internal votersAddressList; // 
+	mapping(uint => VoteHistory) VoteHistoryMap; // voteStartTime과 투표자 매핑
+	Proposal[] public proposals; // 메뉴 리스트
+	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
 
-Proposal[] public proposals; // 메뉴 리스트
+  event AddWinner(string indexed name, uint indexed voteCount, address proposer); // 채택된 메뉴 추가할 때 쓰는 이벤트
 
-Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
 ```
 
 2. 공통으로 사용할 util 함수 선언
+- proposeAvailable : 메뉴 추가 가능한 시간인지 검증하는 함수변경자
+- voteAvailable : 투표 가능한 시간인지 검증하는 함수변경자
 - isNFTholder : NFT 소유자인지 판단하는 함수
+  - params: 뱃지밀 NFT 컨트랙트 주소
 - isMasterNFTholder : 마스터 NFT 소유자인지 판단하는 함수
-- params: 뱃지밀 NFT 컨트랙트 주소
+  - params: 뱃지밀 NFT 컨트랙트 주소
 
 ```sol
+modifier proposeAvailable() {
+    require(now >= proposeStartTime && now < proposeStartTime + 1 days, "Cannot propose now.");
+    _;
+}
+modifier voteAvailable() {
+    require(now >= voteStartTime && now < voteStartTime + 1 days, "Cannot vote now.");
+    _;
+}
+
 function isNFTholder(address _nftAddress) public view returns(bool) {
     return Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender).length != 0;
 }
@@ -128,7 +143,7 @@ function isMasterNFTholder(address _nftAddress) public view returns(bool) {
 - params: 메뉴이름, 뱃지밀 NFT 컨트랙트 주소
 
 ```sol
-function proposeMenu(string memory _name, address _nftAddress) public {
+function proposeMenu(string memory _name, address _nftAddress) public proposeAvailable{
     require(isMasterNFTholder(_nftAddress), "You have no right to propose.");
 
     proposals.push(Proposal({
@@ -144,16 +159,15 @@ function proposeMenu(string memory _name, address _nftAddress) public {
 - params: 메뉴이름, 뱃지밀 NFT 컨트랙트 주소
 
 ```sol
-function vote(uint _proposal, address _nftAddress) public {
+function vote(uint _proposal, address _nftAddress) public voteAvailable {
     require(isNFTholder(_nftAddress), "You have no right to vote");
-    require(!voters[msg.sender].voted, "Already voted.");
-          require(_proposal < proposals.length, "Wrong index.");
+          require(!VoteHistoryMap[voteStartTime].voters[msg.sender].voted, "Already voted.");
+          require(_proposal < proposals.length && _proposal >= 0, "Wrong index.");
 
-    voters[msg.sender].voted = true;
-    voters[msg.sender].vote = _proposal;
+    VoteHistoryMap[voteStartTime].voters[msg.sender].voted = true;
+    VoteHistoryMap[voteStartTime].voters[msg.sender].vote = _proposal;
           
-          votersAddressList.push(msg.sender);
-    proposals[_proposal].voteCount++;
+    proposals[_proposal].voteCount = proposals[_proposal].voteCount.add(1);
 }
 ```
 
@@ -192,7 +206,7 @@ event AddWinner(string indexed name, uint indexed voteCount, address proposer);
 ```sol
 function addWinnerProposal(address _nftAddress) public onlyOwner {
     Proposal storage winner = proposals[winningProposal()];
-          require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
+      require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
 
     winnerProposals.push(winner);
 
@@ -202,11 +216,24 @@ function addWinnerProposal(address _nftAddress) public onlyOwner {
     // proposals 초기화
     delete proposals;
     // voters 초기화;
-          for (uint256 i = 0; i < votersAddressList.length; i++) {
-            voters[votersAddressList[i]].voted = false;
-            voters[votersAddressList[i]].vote = 0;
+    for (uint256 i = 0; i < votersAddressList.length; i++) {
+      voters[votersAddressList[i]].voted = false;
+      voters[votersAddressList[i]].vote = 0;
     }
-          delete votersAddressList;
+    delete votersAddressList;
+}
+```
 
+8. 투표 시작 및 메뉴 추가 시작 시간 세팅하는 함수
+- 백엔드 스케줄러를 통해 매달 말일 `setProposeStartTime` 실행
+- 백엔드 스케줄러를 통해 매달 1일 `setVoteStartTime` 실행
+
+```sol
+function setVoteStartTime () public onlyOwner {
+    voteStartTime = now;
+}
+// 메뉴 추가 시작 시간 세팅하는 함수
+function setProposeStartTime () public onlyOwner {
+    proposeStartTime = now;
 }
 ```
