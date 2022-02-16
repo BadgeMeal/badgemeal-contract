@@ -1567,6 +1567,8 @@ contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintabl
 pragma solidity >=0.5.6;
 
 contract Vote is Ownable {
+	using SafeMath for uint256;
+	
 	struct Proposal {
 		string name;   // 메뉴 이름
 		uint voteCount; // 투표 받은 수
@@ -1591,9 +1593,9 @@ contract Vote is Ownable {
 
     // 마스터 NFT 소유자인지 판단하는 함수
     function isMasterNFTholder(address _nftAddress) public view returns(bool) {
-        uint256[] memory ownedTokenLIst = Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender);
+        uint[] memory ownedTokenLIst = Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender);
         bool result = false;
-        for (uint256 i = 0; i < ownedTokenLIst.length; i++) {
+        for (uint i = 0; i < ownedTokenLIst.length; i++) {
             if (Klaytn17MintBadgemeal(_nftAddress).tokenLevel(ownedTokenLIst[i]) == 2) {
             result = true;
             break;
@@ -1624,7 +1626,7 @@ contract Vote is Ownable {
 			voters[msg.sender].vote = _proposal;
             
             votersAddressList.push(msg.sender);
-			proposals[_proposal].voteCount++;
+			proposals[_proposal].voteCount.add(1);
 	}
 
 	// 가장 많은 득표수를 얻은 메뉴 index 출력하는 함수
@@ -1656,7 +1658,7 @@ contract Vote is Ownable {
 			// proposals 초기화
 			delete proposals;
 			// voters 초기화;
-            for (uint256 i = 0; i < votersAddressList.length; i++) {
+            for (uint i = 0; i < votersAddressList.length; i++) {
               voters[votersAddressList[i]].voted = false;
               voters[votersAddressList[i]].vote = 0;
 			}
