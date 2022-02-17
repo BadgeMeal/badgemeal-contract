@@ -19,16 +19,6 @@ contract BadgemealNFT {
 		owner = msg.sender;
 	}
 
-	// modifier
-	// owner 인지 확인
-	modifier checkOwner() {
-		require(
-			msg.sender == owner,
-			"msg sender is not a owner."
-		);
-		_;
-	}
-
 	// function
 	// NFT 홀더 체크 함수
 	function isHolder(address _address) public view returns(bool) {
@@ -64,6 +54,7 @@ contract VoteMenu {
 	}
 
 	struct Vote {
+		bool voted;
 		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
 	}
 
@@ -73,6 +64,8 @@ contract VoteMenu {
 
 	address public owner; // 컨트랙트 소유자
 
+	address[] voters;
+	
 	mapping(address => Vote) public votes; // 투표한 건수들 모음
 
 	Proposal[] public proposals; // 투표할 메뉴 리스트
@@ -92,14 +85,6 @@ contract VoteMenu {
 	}
 
 	// modifier
-	// owner 인지 확인
-	modifier checkOwner() {
-		require(
-			msg.sender == owner,
-			"msg sender is not a owner."
-		);
-		_;
-	}
 	// 투표가능 여부 (투표 가능한 사람 + 가능한 기간)
 	modifier checkVoteAvailable() {
 		require(
@@ -126,17 +111,25 @@ contract VoteMenu {
 			now > endTime,
 			"The vote is not ended."
 		);
-		if(electedProposal.voteCount >= 0){
+		if(bytes(electedProposal).length == 0){
 			uint voteCount = 0;
-			uint electedIndex = 0; // 투표가 모두 0이면 제일 먼저 등록한 메뉴로 선정 (선착순)
+			uint electedIndex = 0;
 			for (uint i = 0; i < proposals.length; i++) {
 				if (proposals[i].voteCount > voteCount) {
 					voteCount = proposals[i].voteCount;
 					electedIndex = i;
 				}
 			}
-			electedProposal = proposals[electedIndex];
-			BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal.menu, electedProposal.proposer, electedProposal.voteCount, address(this));
+			if(voteCount == 0){
+				electedProposal = proposals[electedIndex];
+				BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal.menu, electedProposal.proposer, electedProposal.voteCount, address(this));
+				
+				// votes(Mapping) 초기화
+				for (uint i=0; i < voters.length; i++){
+					votes[voters[i]].voted = false;
+				}
+				delete voters; // voters
+			}
 		}
 		_;
 	}
@@ -155,8 +148,10 @@ contract VoteMenu {
 		votes[msg.sender] = Vote({
 		vote: proposalIndex
 		});
+		voters.push(msg.sender);
 
 		votes[msg.sender].vote = proposalIndex;
+		votes[msg.sender].voted = true;
 		proposals[proposalIndex].voteCount++;
 	}
 	//제안된 메뉴 목록
