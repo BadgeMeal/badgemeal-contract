@@ -23,6 +23,7 @@ interface IKIP13 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
+
 // File: caver-js/packages/caver-kct/src/contract/token/KIP17/IKIP17.sol
 
 pragma solidity ^0.5.0;
@@ -766,7 +767,7 @@ contract KIP17Enumerable is KIP13, KIP17, IKIP17Enumerable {
         return _allTokens[index];
     }
 
-		function getOwnedTokens(address owner) public view returns (uint256[] memory) {
+    function getOwnedTokens(address owner) public view returns (uint256[] memory) {
         return _ownedTokens[owner];
     }
 
@@ -931,8 +932,10 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
 
     // Optional mapping for token URIs
     mapping(uint256 => string) private _tokenURIs;
-    // 🔥 mapping for token Level
-    mapping(uint256 => uint) private _tokenLevel;
+    // 🔥 mapping for nftType (1: general NFT, 2: master NFT)
+    mapping(uint256 => uint) private _nftType;
+    // 🔥 mapping for menuType
+    mapping(uint256 => string) private _menuType;
 
     /*
      *     bytes4(keccak256('name()')) == 0x06fdde03
@@ -980,14 +983,32 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         return _tokenURIs[tokenId];
     }
 
-		/**
-     * @dev 🔥 Returns an level for a given token ID.
+	/**
+     * @dev 🔥 Returns an nftType for a given token ID.
      * Throws if the token ID does not exist. May return an empty string.
      * @param tokenId uint256 ID of the token to query
      */
-    function tokenLevel(uint256 tokenId) public view returns (uint) {
-        require(_exists(tokenId), "KIP17Metadata: URI query for nonexistent token");
-        return _tokenLevel[tokenId];
+    function nftType(uint256 tokenId) external view returns (uint) {
+        require(_exists(tokenId), "KIP17Metadata: NFT type query for nonexistent token");
+        return _nftType[tokenId];
+    }
+
+	/**
+     * @dev 🔥 Returns an menutype for a given token ID.
+     * Throws if the token ID does not exist. May return an empty string.
+     * @param tokenId uint256 ID of the token to query
+     */
+
+    function menuType(uint256 tokenId) external view returns (string memory) {
+        require(
+            _exists(tokenId),
+            "KIP17Metadata: Menu Type query for nonexistent token"
+        );
+        return _menuType[tokenId];
+    }
+    //소유한 토큰 종류 확인(맞으면 true, 아니면 false)
+    function _ownNftType(uint256 tokenId, string memory menuType) public returns (bool){
+        return keccak256(abi.encodePacked(_menuType[tokenId])) == keccak256(abi.encodePacked(menuType));
     }
 
     /**
@@ -1002,16 +1023,26 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
     }
 
   	/**
-     * @dev 🔥 Internal function to set the token level for a given token.
+     * @dev 🔥 Internal function to set the NFT type for a given token.
      * Reverts if the token ID does not exist.
-     * @param tokenId uint256 ID of the token to set its URI
-     * @param level uint to assign
+     * @param tokenId uint256 ID of the token to set its nftType
+     * @param nftType uint to assign
      */
-		function _setTokenLevel(uint256 tokenId, uint level) internal {
-        require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
-        _tokenLevel[tokenId] = level;
+    function _setNftType(uint256 tokenId, uint nftType) internal {
+        require(_exists(tokenId), "KIP17Metadata: NFT type set of nonexistent token");
+        _nftType[tokenId] = nftType;
     }
-
+  	/**
+     * @dev 🔥 Internal function to set the Menu type for a given token.
+     * Reverts if the token ID does not exist.
+     * @param tokenId uint256 ID of the token to set its menuType
+     * @param menuType uint to assign
+     */
+    function _setMenuType(uint256 tokenId, string memory menuType) internal {
+        require(_exists(tokenId), "KIP17Metadata: Menu Type set of nonexistent token");
+        _menuType[tokenId] = menuType;
+    }
+    
     /**
      * @dev Internal function to burn a specific token.
      * Reverts if the token does not exist.
@@ -1026,11 +1057,26 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
         }
-		// 🔥 Clear level 
-        if (_tokenLevel[tokenId] > 0) {
-            delete _tokenLevel[tokenId];
+        // Clear nftType (if any)
+        if (_nftType[tokenId] > 0) {
+            delete _nftType[tokenId];
+        }
+        // Clear menutype (if any)
+        if (bytes(_menuType[tokenId]).length != 0){
+            delete _menuType[tokenId];
         }
     }
+
+    //마스터 발급을 위한 기존 메뉴 NFT삭제 
+    function _burnForMasterNFT(address owner, uint256 tokenId, string memory menuType) internal returns (bool){
+        if(keccak256(abi.encodePacked(_menuType[tokenId])) == keccak256(abi.encodePacked(menuType))) {
+            _burn(owner, tokenId);
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
 }
 
 // File: caver-js/packages/caver-kct/src/contract/token/KIP17/KIP17Full.sol
@@ -1189,7 +1235,7 @@ pragma solidity ^0.5.0;
  * @title KIP17MetadataMintable
  * @dev KIP17 minting logic with metadata.
  */
-contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
+contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, MinterRole {
     /*
      *     bytes4(keccak256('mintWithTokenURI(address,uint256,string)')) == 0x50bb4e7f
      *     bytes4(keccak256('isMinter(address)')) == 0xaa271e1a
@@ -1217,17 +1263,69 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      * @return A boolean that indicates if the operation was successful.
      */
 
-    function mintWithTokenURI(address to, uint256 tokenId, string memory tokenURI, uint level) public onlyMinter returns (bool) {
-			//🔥 NFT 20개 이하일 경우
-        _mint(to, tokenId);
-        _setTokenURI(tokenId, tokenURI);
-				_setTokenLevel(tokenId, level);
+    function mintWithTokenURI(
+        address to,
+        uint256 tokenId,
+        string memory tokenURI,
+        string memory menuType
+    ) public onlyMinter returns (bool) {
+        uint256 userBalance = balanceOf(to);
 
-			//🔥 NFT 20개 이상일 경우 마스터 배지 NFT
-        // _mint(to, tokenId);
-        // _setTokenURI(tokenId, tokenURI);
-				// _setTokenLevel(tokenId, 2);
-				// NFT 20개 burn
+        //특정 NFT(ex: 국밥 NFT)를 19개 이상 소유했는지 판별해서 19개를 삭제한 후 마스터 NFT 배지 발행
+        if(_checkMenu(to, menuType, userBalance) >= 19) {
+            _removeOwnToken(to, menuType);
+            _mint(to, tokenId);
+            _setTokenURI(tokenId, tokenURI);
+            _setNftType(tokenId, 2);
+            _setMenuType(tokenId, menuType);
+        } else {
+            _mint(to, tokenId);
+            _setTokenURI(tokenId, tokenURI);
+            _setNftType(tokenId, 1);
+            _setMenuType(tokenId, menuType);
+        }
+        return true;
+    }
+
+    //소유한 특정 메뉴 NFT 갯수 확인
+    function _checkMenu(address owner, string memory menuType, uint256 balance) private returns(uint256){
+        uint256 result = 0;
+        uint256[] memory owendAllTokenList = getOwnedTokens(owner);
+        for (uint256 i = 0; i< balance; i++){
+            if(_ownNftType(owendAllTokenList[i], menuType)){
+                result++;
+            }
+        }
+        return result;
+    }
+
+    //소유한 19개 메뉴 NFT burn
+    function _removeOwnToken(address to, string memory menuType) private{
+        uint256 count = 0;
+        uint256[] memory owendAllTokenList = getOwnedTokens(to);
+        //유저가 가지고 있는 기존 NFT 19개 삭제
+        for (uint256 i = 0; i < owendAllTokenList.length; i++) {
+            bool isSucess = _burnForMasterNFT(to, owendAllTokenList[i], menuType);
+            if(isSucess) {
+                count ++;
+            }
+            if(count == 19) {
+                break;
+            }
+        }
+    }
+
+    //mint 유료: 0.5 klay 소모
+    function mintWithKlay(
+        address to,
+        uint256 tokenId,
+        string memory tokenURI,
+        string memory menuType,
+        address payable receiver
+    ) public payable returns (bool) {
+        receiver.transfer(10**17*5);
+
+        mintWithTokenURI(to, tokenId, tokenURI, menuType);
         return true;
     }
 }
@@ -1435,6 +1533,8 @@ contract KIP17Pausable is KIP13, KIP17, Pausable {
     }
 }
 
+
+
 // File: @openzeppelin/contracts/GSN/Context.sol
 
 pragma solidity ^0.5.0;
@@ -1619,7 +1719,7 @@ contract Vote is Ownable {
         uint[] memory ownedTokenLIst = Klaytn17MintBadgemeal(_nftAddress).getOwnedTokens(msg.sender);
         bool result = false;
         for (uint i = 0; i < ownedTokenLIst.length; i++) {
-            if (Klaytn17MintBadgemeal(_nftAddress).tokenLevel(ownedTokenLIst[i]) == 2) {
+            if (Klaytn17MintBadgemeal(_nftAddress).nftType(ownedTokenLIst[i]) == 2) {
             result = true;
             break;
             } 
