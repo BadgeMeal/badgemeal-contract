@@ -18,16 +18,6 @@
 	}
     ```
 2.  vote contract에 필요한 modifier
-  - contract 소유자인지 확인하는 modifier
-    ```Solidity
-	modifier checkOwner() {
-		require(
-			msg.sender == owner,
-			"msg sender is not a owner."
-		);
-		_;
-	}
-    ```  
   - 투표가능 여부 (투표 가능한 사람 + 가능한 기간) 확인하는 modifier
     ```Solidity
 	modifier checkVoteAvailable() {
@@ -59,17 +49,25 @@
 			now > endTime,
 			"The vote is not ended."
 		);
-		if(electedProposal.voteCount >= 0){
+		if(bytes(electedProposal).length == 0){
 			uint voteCount = 0;
-			uint electedIndex = 0; // 투표가 모두 0이면 제일 먼저 등록한 메뉴로 선정 (선착순)
+			uint electedIndex = 0;
 			for (uint i = 0; i < proposals.length; i++) {
 				if (proposals[i].voteCount > voteCount) {
 					voteCount = proposals[i].voteCount;
 					electedIndex = i;
 				}
 			}
-			electedProposal = proposals[electedIndex];
-			BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal.menu, electedProposal.proposer, electedProposal.voteCount, address(this));
+			if(voteCount == 0){
+				electedProposal = proposals[electedIndex];
+				BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal.menu, electedProposal.proposer, electedProposal.voteCount, address(this));
+				
+				// votes(Mapping) 초기화
+				for (uint i=0; i < voters.length; i++){
+					votes[voters[i]].voted = false;
+				}
+				delete voters; // voters
+			}
 		}
 		_;
 	}
@@ -103,8 +101,10 @@
 		votes[msg.sender] = Vote({
 		vote: proposalIndex
 		});
+		voters.push(msg.sender);
 
 		votes[msg.sender].vote = proposalIndex;
+		votes[msg.sender].voted = true;
 		proposals[proposalIndex].voteCount++;
 	}
     ```    
