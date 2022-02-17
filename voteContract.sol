@@ -1,128 +1,184 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.6;
 
-contract Vote {
+contract BadgemealNFT {
 
 	struct Proposal {
-		string name;   // 메뉴 이름
-		uint voteCount; // 투표 받은 수
-		string imageUrl; // 메뉴 이미지 url
+		string menu;   // 메뉴 이름
 		address proposer; // 메뉴 제안자
-
+		uint voteCount; // 투표 받은 수
+		address voteContract; // 투표 컨트랙트 address
 	}
-    
-	struct Voter {
-		bool voted;  // 투표 진행 여부 (true,false)
-		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
-		uint weight; // 투표 권한
 
-	}
-	
-	address public deployer; // 컨트랙트 배포자
-	
-	mapping(address => Voter) public voters; // 투표자 매핑
+	address public owner; // 컨트랙트 소유자
 
-	address[] public voterList; // 투표자 리스트
-	
-	Proposal[] public proposals; // 메뉴 리스트
+	mapping(address => bool) public nftHolders; // NFT 홀더 매핑
 
-	Proposal[] public winnerProposals; // 투표로 채택된 메뉴 리스트
+	Proposal[] public electedProposals; // 투표로 채택된 메뉴 리스트
 
 	constructor() public {
-		deployer = msg.sender;
+		owner = msg.sender;
 	}
 
+	// function
+	// NFT 홀더 체크 함수
+	function isHolder(address _address) public view returns(bool) {
+		return nftHolders[_address];
+	}
 
-	// 메뉴 추가 함수
-	function proposeMenu(string memory name, string memory imageUrl) public {
-		/** 🔥 pseudocode 추가
-		 	[require] msg.sender == 뱃지밀 마스터 NFT 소유자, "메뉴 추가 제안 권한이 없습니다."
-		*/
-
-		proposals.push(Proposal({
-			name: name,
-			voteCount: 0,
-			imageUrl: imageUrl,
-			proposer: msg.sender
+	// 채택된 메뉴 추가 함수
+	function addElectedProposal(string memory _menu, address _proposer, uint _voteCount, address _voteContract) public{
+		electedProposals.push(Proposal({
+		menu: _menu,
+		proposer: _proposer,
+		voteCount: _voteCount,
+		voteContract: _voteContract
 		}));
 	}
 
-	// 투표자 리스트 추가 함수
-	function addVoters(address[] memory addressList) public {
-			require(
-					msg.sender == deployer,
-					"Only deployer can give right to vote."
-			);
-			require(
-					voterList.length == 0,
-					"Already added Voters."
-			);
+	// NFT 홀더 추가 함수
+	function addNFTHolder(address _address) private {
+		require(
+			!nftHolders[_address],
+			"already added NFT Holder address."
+		);
 
-			/** 🔥 수정 필요
-				addressList를 입력값으로 받는 것이 아니라 NFT 홀더 리스트를 가져오는 함수를 호출한 후 아래 로직을 실행하는게 좋을 것 같다.
-			*/
-			
-			for (uint i = 0; i < addressList.length; i++) {
-					voterList.push(addressList[i]);
+		nftHolders[_address] = true;
+	}
+}
+
+contract VoteMenu {
+	struct Proposal {
+		string menu;   // 메뉴 이름
+		uint voteCount; // 투표 받은 수
+		address proposer; // 메뉴 제안자
+	}
+
+	struct Vote {
+		bool voted;
+		uint vote;   // Menu 리스트 요소의 index (0,1,2 ...)
+	}
+
+	string badgeNFTAddress = "0x0000000000000000000000";
+
+	Proposal electedProposal; // 선출된 투표결과 저장
+
+	address public owner; // 컨트랙트 소유자
+
+	address[] voters;
+	
+	mapping(address => Vote) public votes; // 투표한 건수들 모음
+
+	Proposal[] public proposals; // 투표할 메뉴 리스트
+
+	uint startTime; // 투표 시작 시간
+
+	uint endTime; // 투표 마감 시간
+
+	constructor(uint _startTime, uint _endTime) public {
+		require(
+			_startTime < _endTime,
+			"start time needs to be lower than end time"
+		);
+		owner = msg.sender;
+		startTime = _startTime;
+		endTime = _endTime;
+	}
+
+	// modifier
+	// 투표가능 여부 (투표 가능한 사람 + 가능한 기간)
+	modifier checkVoteAvailable() {
+		require(
+			BadgemealNFT(badgeNFTAddress).isHolder(msg.sender),
+			"msg sender don't have vote authority."
+		);
+		require(
+			now >= startTime && now < endTime,
+			"this vote is not available"
+		);
+		_;
+	}
+	// 이미 투표 했는지 확인
+	modifier alreadyVoted() {
+		require(
+			votes[msg.sender].vote >= 0,
+			"msg sender already voted"
+		);
+		_;
+	}
+	// 투표 결과 선언
+	modifier announceResult() {
+		require(
+			now > endTime,
+			"The vote is not ended."
+		);
+		if(bytes(electedProposal).length == 0){
+			uint voteCount = 0;
+			uint electedIndex = 0;
+			for (uint i = 0; i < proposals.length; i++) {
+				if (proposals[i].voteCount > voteCount) {
+					voteCount = proposals[i].voteCount;
+					electedIndex = i;
+				}
 			}
-	}
-    
-	// 투표 권한 부여 함수
-	function giveRightToVote(address voter) private {
-			require(
-					msg.sender == deployer,
-					"Only deployer can give right to vote."
-			);
-			require(
-					!voters[voter].voted,
-					"The voter already voted."
-			);
-			require(voters[voter].weight == 0);
-			voters[voter].weight = 1;
-	}
-
-	// 투표자 리스트 모두에게 권한 부여
-    function giveVotersRightToVote() public {
-        for (uint i = 0; i < voterList.length; i++) {
-            giveRightToVote(voterList[i]);
-        }
-    }
-
-
-	// 투표 함수
-	function vote(uint proposal) public {
-		Voter storage sender = voters[msg.sender];
-
-		/** 🔥 pseudocode 추가
-		 	[require] msg.sender == 뱃지밀 일반 NFT 소유자, "투표 권한이 없습니다."
-		*/
-		require(sender.weight != 0, "Has no right to vote");
-		require(!sender.voted, "Already voted.");
-
-		sender.voted = true;
-		sender.vote = proposal;
-
-		proposals[proposal].voteCount += sender.weight;
-	}
-
-	// 가장 많은 득표수를 얻은 메뉴 index 출력하는 함수
-	function winningProposal() public view returns (uint winningProposal_) {
-			uint winningVoteCount = 0;
-			for (uint p = 0; p < proposals.length; p++) {
-					if (proposals[p].voteCount > winningVoteCount) {
-							winningVoteCount = proposals[p].voteCount;
-							winningProposal_ = p;
-					}
+			if(voteCount == 0){
+				electedProposal = proposals[electedIndex];
+				BadgemealNFT(badgeNFTAddress).addElectedProposal(electedProposal.menu, electedProposal.proposer, electedProposal.voteCount, address(this));
+				
+				// votes(Mapping) 초기화
+				for (uint i=0; i < voters.length; i++){
+					votes[voters[i]].voted = false;
+				}
+				delete voters; // voters
 			}
+		}
+		_;
 	}
 
-	// 가장 많은 득표수를 얻은 메뉴 이름을 리턴하는 함수
-	function winnerName() public view returns (string memory winnerName_) {
-			winnerName_ = proposals[winningProposal()].name;
+	// function
+	// 메뉴 제안
+	function proposeMenu(string memory _menu) checkVoteAvailable public{
+		proposals.push(Proposal({
+		menu: _menu,
+		voteCount: 0,
+		proposer: msg.sender
+		}));
+	}
+	// 투표
+	function vote(uint proposalIndex) checkVoteAvailable alreadyVoted public{
+		votes[msg.sender] = Vote({
+		vote: proposalIndex
+		});
+		voters.push(msg.sender);
+
+		votes[msg.sender].vote = proposalIndex;
+		votes[msg.sender].voted = true;
+		proposals[proposalIndex].voteCount++;
+	}
+	//제안된 메뉴 목록
+	function proposedMenuList() public view returns(string) {
+		string memory result = proposals[0].menu;
+		for(uint i = 1; i < proposals.length; i++){
+			string memory temp = string(abi.encodePacked(", ", proposals[i].menu));
+			result = string(abi.encodePacked(result, temp));
+		}
+		return result;
 	}
 
-	/** 🔥 pseudocode 추가
-		function 투표 마감
-		1. 투표 시간이 마감되면 가장 많은 득표수를 얻은 메뉴 Proposal을 winnerProposals 에 push 한다.
-		2. Proposals를 초기화한다.
-	*/
+	// 투표 결과 - electedProposal 변수에 값이 있으면 반환, 없으면 저장하고 반환
+	/*function getElectedProposal() announceResult public view returns (Proposal memory electedProposal_) {
+		electedProposal_ = electedProposal;
+	}*/
+
+	// 가장 많은 득표수를 얻은 메뉴 이름을 리턴
+	function getElectedMenuName() announceResult public returns (string memory electedMenuName_) {
+		electedMenuName_ = electedProposal.menu;
+	}
+	// 가장 많은 득표수를 얻은 메뉴의 득표수를 리턴
+	function getElectedMenuVoteCount() announceResult public returns (uint  electedMenuVoteCount_) {
+		electedMenuVoteCount_ = electedProposal.voteCount;
+	}
+	// 가장 많은 득표수를 얻은 메뉴의 제안자 address를 리턴
+	function getElectedMenuVoterAddress() announceResult public returns (address  electedMenuVoterAddress_) {
+		electedMenuVoterAddress_ = electedProposal.proposer;
+	}
 }
