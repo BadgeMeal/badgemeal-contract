@@ -1127,8 +1127,10 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
 
     // Optional mapping for token URIs
     mapping(uint256 => string) private _tokenURIs;
-    // 🔥 mapping for token Level
-    mapping(uint256 => uint) private _tokenLevel;
+    // 🔥 mapping for nftType
+    mapping(uint256 => uint) private _nftType;
+
+    mapping(uint256 => string) private _menuType;
     /*
      *     bytes4(keccak256('name()')) == 0x06fdde03
      *     bytes4(keccak256('symbol()')) == 0x95d89b41
@@ -1179,18 +1181,27 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
     }
 
 	/**
-     * @dev 🔥 Returns an level for a given token ID.
+     * @dev 🔥 Returns an nftType for a given token ID.
      * Throws if the token ID does not exist. May return an empty string.
      * @param tokenId uint256 ID of the token to query
      */
-    function tokenLevel(uint256 tokenId) external view returns (uint) {
+    function nftType(uint256 tokenId) external view returns (uint) {
         require(_exists(tokenId), "KIP17Metadata: URI query for nonexistent token");
-        return _tokenLevel[tokenId];
+        return _nftType[tokenId];
     }
 
+    function menuType(uint256 tokenId) external view returns (string memory) {
+        require(
+            _exists(tokenId),
+            "KIP17Metadata: URI query for nonexistent token"
+        );
+        return _menuType[tokenId];
+    }
+
+
     //소유한 토큰 종류 확인(맞으면 true, 아니면 false)
-    function _ownTokenLevel(uint256 tokenId, uint level) internal returns (bool){
-        return _tokenLevel[tokenId]==level;
+    function _ownNftType(uint256 tokenId, string memory menuType) internal returns (bool){
+        return  keccak256(abi.encodePacked(_menuType[tokenId])) == keccak256(abi.encodePacked(menuType));
     }
 
     /**
@@ -1207,16 +1218,19 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         _tokenURIs[tokenId] = uri;
     }
 
-    /**
-     * @dev 🔥 Internal function to set the token level for a given token.
-     * Reverts if the token ID does not exist.
-     * @param tokenId uint256 ID of the token to set its URI
-     * @param level uint to assign
-     */
-    function _setTokenLevel(uint256 tokenId, uint level) internal {
+   
+    function _setNftType(uint256 tokenId, uint nftType) internal {
         require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
-        _tokenLevel[tokenId] = level;
+        _nftType[tokenId] = nftType;
     }
+
+
+    function _setMenuType(uint256 tokenId, string memory menuType) internal{
+        require(_exists(tokenId), "KIP17Metadata: URI set of nonexistent token");
+        _menuType[tokenId] = menuType;
+    }
+    
+
     /**
      * @dev Internal function to burn a specific token.
      * Reverts if the token does not exist.
@@ -1225,10 +1239,14 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
      * @param tokenId uint256 ID of the token being burned by the msg.sender
      */
      //마스터 발급을 위한 기존 메뉴 NFT삭제 
-    function _burnForMasterNFT(address owner, uint256 tokenId, uint level) internal{
-        if(level == _tokenLevel[tokenId])
+    function _burnForMasterNFT(address owner, uint256 tokenId, string memory menuType) internal returns (bool){
+        if(keccak256(abi.encodePacked(_menuType[tokenId])) == keccak256(abi.encodePacked(menuType)))
         {
             _burn(owner, tokenId);
+            return true;
+        }
+        else{
+            return false;
         }
     }
     
@@ -1240,8 +1258,12 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
         }
-        if (_tokenLevel[tokenId] > 0) {
-            delete _tokenLevel[tokenId];
+        if (_nftType[tokenId] > 0) {
+            delete _nftType[tokenId];
+        }
+        if (bytes(_menuType[tokenId]).length != 0){
+            delete _menuType[tokenId];
+        
         }
         
     }
@@ -1392,16 +1414,17 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
      * @param tokenURI The token URI of the minted token.
      * @return A boolean that indicates if the operation was successful.
      */
-     // tokenLevel 추가
     function mintWithTokenURI(
         address to,
         uint256 tokenId,
         string memory tokenURI,
-        uint level
+        uint nftType,
+        string memory menuType
     ) public onlyMinter returns (bool) {
         _mint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
-        _setTokenLevel(tokenId, level);
+        _setNftType(tokenId, nftType);
+        _setMenuType(tokenId, menuType);
         return true;
     }
     
@@ -1410,21 +1433,22 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
         address to,
         uint256 tokenId,
         string memory tokenURI,
-        uint level,
+        uint nftType,
+        string memory menuType,
         address payable reciver
     ) public payable returns (bool) {
         // reciver = Ownable(NFT).owner();
         reciver.transfer(10**17*5);
-        mintWithTokenURI(to,tokenId, tokenURI,level);
+        mintWithTokenURI(to,tokenId, tokenURI,nftType, menuType);
         return true;
     }
-    //마스터 뱃지 mint (수정사항 : 마스터 뱃지레벨, 일반 뱃지(메뉴별 레벨)로 구분)
+    //마스터 뱃지 mint 
     function mintMasterBadge(
         address to,
         uint256 tokenId,
         string memory tokenURI,
-        uint setLevel,
-        uint delLevel,
+        uint nftType,
+        string memory menuType,
         address NFT
     ) public returns (bool){
         uint256 userBalance;
@@ -1433,17 +1457,17 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
         _listOfUserToeknId(userBalance, to, NFT);
 
         //특정 NFT(국밥 마스터 뱃지 인지)가 20개 이상 소유한지 판별
-        require(_checkMenu(delLevel, userBalance) >= 20, "You must have menu20NFTs");
-        _removeOwnToken(to, delLevel);
-        mintWithTokenURI(to,tokenId, tokenURI,setLevel);
+        require(_checkMenu(menuType, userBalance) >= 20, "You must have menu20NFTs");
+        _removeOwnToken(to, menuType);
+        mintWithTokenURI(to,tokenId, tokenURI,nftType,menuType);
         return true;
     }
 
     //소유한 특정메뉴 갯수 확인
-    function _checkMenu(uint level, uint256 balance) private returns(uint256){
+    function _checkMenu(string memory menuType, uint256 balance) private returns(uint256){
         uint256 result = 0;
         for (uint256 i =0 ; i< balance; i++){
-            if(_ownTokenLevel(_userid[i], level)){
+            if(_ownNftType(_userid[i], menuType)){
                 result++;
             }
         }
@@ -1459,11 +1483,19 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Metadata, MinterRole {
         }
     }
     // 소유한 20개의 메뉴 NFT 삭제
-    function _removeOwnToken(address to, uint level) private{
-
+    function _removeOwnToken(address to, string memory menuType) private{
+        uint256 count =0;
         //유저가 가지고 있는 기존 NFT 삭제(20개 이상을 소유할 수도 있으니 20개만 삭제)
-        for (uint256 i = 0; i < 20; i++) {
-            _burnForMasterNFT(to, _userid[i],level);
+        for (uint256 i = 0; i < _userid.length; i++) {
+            bool isSucess = _burnForMasterNFT(to, _userid[i],menuType);
+            if(isSucess)
+            {
+                count ++;
+            }
+            if(count ==20)
+            {
+                break;
+            }
         }
       
         _useridInit();
