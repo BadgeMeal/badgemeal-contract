@@ -204,23 +204,17 @@ event AddWinner(string indexed name, uint indexed voteCount, address proposer);
   - 투표자에게 베네핏 제공: 메뉴 NFT 1개 랜덤 발행
 
 ```sol
-function addWinnerProposal(address _nftAddress) public onlyOwner {
+function addWinnerProposal(address _nftAddress) public onlyOwner addProposeAvailable {
     Proposal storage winner = proposals[winningProposal()];
-      require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
+          require(winner.voteCount > (Klaytn17MintBadgemeal(_nftAddress).totalSupply() / 2), "The proposal did not win majority of the votes.");
 
     winnerProposals.push(winner);
 
     // event 발생
-    emit AddWinner(winner.name, winner.voteCount, winner.proposer)
+    emit AddWinner(winner.name, winner.voteCount, winner.proposer);
 
     // proposals 초기화
     delete proposals;
-    // voters 초기화;
-    for (uint256 i = 0; i < votersAddressList.length; i++) {
-      voters[votersAddressList[i]].voted = false;
-      voters[votersAddressList[i]].vote = 0;
-    }
-    delete votersAddressList;
 }
 ```
 
