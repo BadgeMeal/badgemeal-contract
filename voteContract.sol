@@ -1247,6 +1247,8 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
     address private _owner;
 
+	event MintMasterNFT(string indexed tokenURI);
+
     /**
      * @dev Constructor function.
      */
@@ -1263,12 +1265,13 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         return _owner;
     }
 
-
     /**
      * @dev Function to mint tokens.  🔥KIP17 토큰 표준 수정 
      * @param to The address that will receive the minted tokens.
      * @param tokenId The token id to mint.
-     * @param tokenURI The token URI of the minted token.
+     * @param genralTokenURI The general token URI of the minted token.
+     * @param masterTokenURI The master token URI of the minted token.
+     * @param menuType The menu type of the minted token.
      * @return A boolean that indicates if the operation was successful.
      */
 
@@ -1279,7 +1282,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         string memory masterTokenURI,
         string memory menuType
     ) public onlyMinter returns (bool) {
-		require(bytes(masterTokenURI).length != 0, "[Master NFT Problem] Please Contact us.");
+		require(bytes(masterTokenURI).length != 0, "No More Master NFT.");
         uint256 userBalance = balanceOf(to);
 
         //특정 NFT(ex: 국밥 NFT)를 19개 이상 소유했는지 판별해서 19개를 삭제한 후 마스터 NFT 배지 발행
@@ -1289,6 +1292,8 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
             _setTokenURI(tokenId, masterTokenURI);
             _setNftType(tokenId, 2);
             _setMenuType(tokenId, menuType);
+
+			emit MintMasterNFT(masterTokenURI);
         } else {
             _mint(to, tokenId);
             _setTokenURI(tokenId, genralTokenURI);
