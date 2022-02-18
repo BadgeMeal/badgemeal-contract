@@ -1245,6 +1245,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
      *     => 0x50bb4e7f ^ 0xaa271e1a ^ 0x983b2d56 ^ 0x98650275 == 0xfac27f46
      */
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
+    address private _owner;
 
     /**
      * @dev Constructor function.
@@ -1252,6 +1253,14 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
     constructor () public {
         // register the supported interface to conform to KIP17Mintable via KIP13
         _registerInterface(_INTERFACE_ID_KIP17_METADATA_MINTABLE);
+        _owner = msg.sender;
+    }
+
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view returns (address) {
+        return _owner;
     }
 
 
@@ -1320,9 +1329,9 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         address to,
         uint256 tokenId,
         string memory tokenURI,
-        string memory menuType,
-        address payable receiver
+        string memory menuType
     ) public payable returns (bool) {
+        address payable receiver = address(uint160(owner()));
         receiver.transfer(10**17*5);
 
         mintWithTokenURI(to, tokenId, tokenURI, menuType);
