@@ -1275,21 +1275,23 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
     function mintWithTokenURI(
         address to,
         uint256 tokenId,
-        string memory tokenURI,
+        string memory genralTokenURI,
+        string memory masterTokenURI,
         string memory menuType
     ) public onlyMinter returns (bool) {
+		require(bytes(masterTokenURI).length != 0, "[Master NFT Problem] Please Contact us.");
         uint256 userBalance = balanceOf(to);
 
         //특정 NFT(ex: 국밥 NFT)를 19개 이상 소유했는지 판별해서 19개를 삭제한 후 마스터 NFT 배지 발행
         if(_checkMenu(to, menuType, userBalance) >= 19) {
             _removeOwnToken(to, menuType);
             _mint(to, tokenId);
-            _setTokenURI(tokenId, tokenURI);
+            _setTokenURI(tokenId, masterTokenURI);
             _setNftType(tokenId, 2);
             _setMenuType(tokenId, menuType);
         } else {
             _mint(to, tokenId);
-            _setTokenURI(tokenId, tokenURI);
+            _setTokenURI(tokenId, genralTokenURI);
             _setNftType(tokenId, 1);
             _setMenuType(tokenId, menuType);
         }
@@ -1328,13 +1330,14 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
     function mintWithKlay(
         address to,
         uint256 tokenId,
-        string memory tokenURI,
+        string memory genralTokenURI,
+        string memory masterTokenURI,
         string memory menuType
     ) public payable returns (bool) {
         address payable receiver = address(uint160(owner()));
         receiver.transfer(10**17*5);
 
-        mintWithTokenURI(to, tokenId, tokenURI, menuType);
+        mintWithTokenURI(to, tokenId, genralTokenURI, masterTokenURI, menuType);
         return true;
     }
 }
