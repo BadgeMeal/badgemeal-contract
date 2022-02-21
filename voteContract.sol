@@ -1268,8 +1268,8 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
     }
 
     //badgemealMinter 인지 체크하는 modifier
-    modifier onlyBadgemealMinter() {
-        require(badgemealMinter[msg.sender] == true, "MinterRole: caller does not have the Minter role");
+    modifier onlyBadgemealMinter(address acconut) {
+        require(badgemealMinter[acconut] == true, "MinterRole: caller does not have the Minter role");
         _;
     }
 
@@ -1298,7 +1298,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         string memory genralTokenURI,
         string memory masterTokenURI,
         string memory menuType
-    ) public onlyBadgemealMinter returns (bool) {
+    ) public onlyBadgemealMinter(to) returns (bool) {
 		require(bytes(masterTokenURI).length != 0, "No More Master NFT.");
         uint256 userBalance = balanceOf(to);
 
