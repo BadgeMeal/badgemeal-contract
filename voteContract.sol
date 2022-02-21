@@ -1246,6 +1246,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
      */
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
     address private _owner;
+    mapping (address => bool) badgemealMinter; //onlyBadgemealMinter modifier를 위한 매핑
 
 	event MintMasterNFT(string indexed tokenURI);
 
@@ -1256,6 +1257,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         // register the supported interface to conform to KIP17Mintable via KIP13
         _registerInterface(_INTERFACE_ID_KIP17_METADATA_MINTABLE);
         _owner = msg.sender;
+        badgemealMinter[msg.sender] = true;
     }
 
     /**
@@ -1263,6 +1265,21 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
      */
     function owner() public view returns (address) {
         return _owner;
+    }
+
+    //badgemealMinter 인지 체크하는 modifier
+    modifier onlyBadgemealMinter() {
+        require(badgemealMinter[msg.sender] == true, "MinterRole: caller does not have the Minter role");
+        _;
+    }
+
+    //유저에게 badgemealMinter 권한 부여
+    function addBadgemealMinter(address acconut) public onlyMinter {
+        badgemealMinter[acconut] = true;
+    }
+    //유저의 badgemealMinter 권한 삭제
+    function removeBadgemealMinter(address acconut) public onlyMinter {
+        badgemealMinter[acconut] = false;
     }
 
     /**
@@ -1281,7 +1298,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         string memory genralTokenURI,
         string memory masterTokenURI,
         string memory menuType
-    ) public onlyMinter returns (bool) {
+    ) public onlyBadgemealMinter returns (bool) {
 		require(bytes(masterTokenURI).length != 0, "No More Master NFT.");
         uint256 userBalance = balanceOf(to);
 
