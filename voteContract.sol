@@ -1815,6 +1815,12 @@ contract Vote is Ownable {
 			delete proposals;
 	}
 
+    // 제안된 메뉴 리스트 길이 가져오는 함수
+    function getProposedMenuListLength() public view returns(uint256 length_) {
+        length_ = proposals.length;
+		return length_;
+	}
+
     // 투표 시작 시간 세팅하는 함수
     function setVoteStartTime () public onlyOwner {
         voteStartTime = now;
