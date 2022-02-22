@@ -1821,6 +1821,12 @@ contract Vote is Ownable {
 		return length_;
 	}
 
+    // winnerProposals 길이 가져오는 함수
+    function getwinnerProposalsLength() public view returns(uint256 length_) {
+        length_ = winnerProposals.length;
+		return length_;
+	}
+
     // 투표 시작 시간 세팅하는 함수
     function setVoteStartTime () public onlyOwner {
         voteStartTime = now;
