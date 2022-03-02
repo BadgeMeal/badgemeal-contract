@@ -1248,7 +1248,8 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
     address private _owner;
     mapping (address => bool) badgemealMinter; //onlyBadgemealMinter modifier를 위한 매핑
 
-	event MintMasterNFT(string indexed tokenURI);
+	event MintMasterNFT(string typeString);
+	event MintGeneralNFT(string typeString);
 
     /**
      * @dev Constructor function.
@@ -1298,7 +1299,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         string memory genralTokenURI,
         string memory masterTokenURI,
         string memory menuType
-    ) public onlyBadgemealMinter(to) returns (bool) {
+    ) public onlyBadgemealMinter(to) {
 		require(bytes(masterTokenURI).length != 0, "No More Master NFT.");
         uint256 userBalance = balanceOf(to);
 
@@ -1310,14 +1311,15 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
             _setNftType(tokenId, 2);
             _setMenuType(tokenId, menuType);
 
-			emit MintMasterNFT(masterTokenURI);
+			emit MintMasterNFT('MintMasterNFT');
         } else {
             _mint(to, tokenId);
             _setTokenURI(tokenId, genralTokenURI);
             _setNftType(tokenId, 1);
             _setMenuType(tokenId, menuType);
+
+			emit MintGeneralNFT('MintGeneralNFT');
         }
-        return true;
     }
 
     //소유한 특정 메뉴 NFT 갯수 확인
@@ -1355,12 +1357,11 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
         string memory genralTokenURI,
         string memory masterTokenURI,
         string memory menuType
-    ) public payable returns (bool) {
+    ) public payable {
         address payable receiver = address(uint160(owner()));
         receiver.transfer(10**17*5);
 
         mintWithTokenURI(to, tokenId, genralTokenURI, masterTokenURI, menuType);
-        return true;
     }
 }
 
