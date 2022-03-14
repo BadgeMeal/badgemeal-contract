@@ -1057,17 +1057,17 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
         }
-        // Clear nftType (if any)
+        // 🔥 Clear nftType (if any)
         if (_nftType[tokenId] > 0) {
             delete _nftType[tokenId];
         }
-        // Clear menutype (if any)
+        // 🔥 Clear _menuType (if any)
         if (bytes(_menuType[tokenId]).length != 0){
             delete _menuType[tokenId];
         }
     }
 
-    //마스터 발급을 위한 기존 메뉴 NFT삭제 
+    //🔥 마스터 발급을 위한 기존 메뉴 NFT삭제 
     function _burnForMasterNFT(address owner, uint256 tokenId, string memory menuType) internal returns (bool){
         if(keccak256(abi.encodePacked(_menuType[tokenId])) == keccak256(abi.encodePacked(menuType))) {
             _burn(owner, tokenId);
@@ -1076,7 +1076,6 @@ contract KIP17Metadata is KIP13, KIP17, IKIP17Metadata {
             return false;
         }
     }
-    
 }
 
 // File: caver-js/packages/caver-kct/src/contract/token/KIP17/KIP17Full.sol
@@ -1245,6 +1244,7 @@ contract KIP17MetadataMintable is KIP13, KIP17, KIP17Enumerable, KIP17Metadata, 
      *     => 0x50bb4e7f ^ 0xaa271e1a ^ 0x983b2d56 ^ 0x98650275 == 0xfac27f46
      */
     bytes4 private constant _INTERFACE_ID_KIP17_METADATA_MINTABLE = 0xfac27f46;
+
     address private _owner;
     mapping (address => bool) badgemealMinter; //onlyBadgemealMinter modifier를 위한 매핑
 

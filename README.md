@@ -1,16 +1,195 @@
 # BadgeMeal Smart Contract
 
-## KIP17 표준 컨트랙트 수정 사항
+## KIP17 컨트랙트 수정 사항
 
-1. Ownable 컨트랙트를 가져온다. 
-@openzeppelin/contracts/ownership/Ownable.sol
+### KIP17Metadata Contract
 
-2. 뱃지밀 컨트랙트에 Ownable 컨트랙트를 상속 받는다.
+- nftType, menuType mapping 추가
 ```sol
-contract Klaytn17MintBadgemeal is KIP17Full, KIP17Mintable, KIP17MetadataMintable, KIP17Burnable, KIP17Pausable, Ownable {
-  //... 생략
+//mapping for nftType (1: general NFT, 2: master NFT)
+mapping(uint256 => uint) private _nftType;
+
+//mapping for menuType
+mapping(uint256 => string) private _menuType;
+```
+
+- nftType, menuType getter 함수 추가
+
+```sol
+function nftType(uint256 tokenId) external view returns (uint) {
+    require(_exists(tokenId), "KIP17Metadata: NFT type query for nonexistent token");
+    return _nftType[tokenId];
+}
+
+function menuType(uint256 tokenId) external view returns (string memory) {
+    require(
+        _exists(tokenId),
+        "KIP17Metadata: Menu Type query for nonexistent token"
+    );
+    return _menuType[tokenId];
 }
 ```
+
+- nftType, menuType setter 함수 추가
+
+```sol
+function _setNftType(uint256 tokenId, uint nftType) internal {
+    require(_exists(tokenId), "KIP17Metadata: NFT type set of nonexistent token");
+    _nftType[tokenId] = nftType;
+}
+
+function _setMenuType(uint256 tokenId, string memory menuType) internal {
+    require(_exists(tokenId), "KIP17Metadata: Menu Type set of nonexistent token");
+    _menuType[tokenId] = menuType;
+}
+```
+
+- _burn 함수에 nftType, menuType delete 코드 추가
+
+```sol
+function _burn(address owner, uint256 tokenId) internal {
+    super._burn(owner, tokenId);
+
+    // Clear metadata (if any)
+    if (bytes(_tokenURIs[tokenId]).length != 0) {
+        delete _tokenURIs[tokenId];
+    }
+    // Clear nftType (if any)
+    if (_nftType[tokenId] > 0) {
+        delete _nftType[tokenId];
+    }
+    // Clear _menuType (if any)
+    if (bytes(_menuType[tokenId]).length != 0){
+        delete _menuType[tokenId];
+    }
+}
+```
+
+- 마스터 NFT mint할 때 기존 일반 NFT 19개 burn 
+
+```sol
+  function _burnForMasterNFT(address owner, uint256 tokenId, string memory menuType) internal returns (bool){
+      if(keccak256(abi.encodePacked(_menuType[tokenId])) == keccak256(abi.encodePacked(menuType))) {
+          _burn(owner, tokenId);
+          return true;
+      } else {
+          return false;
+      }
+  }
+```
+
+### KIP17MetadataMintable Contract
+
+- badgemealMinter mapping, onlyBadgemealMinter modifier, minting 권한 부여 함수 추가
+
+```sol
+mapping (address => bool) badgemealMinter; 
+
+event MintMasterNFT(string typeString);
+event MintGeneralNFT(string typeString);
+
+//badgemealMinter 인지 체크하는 modifier
+modifier onlyBadgemealMinter(address acconut) {
+    require(badgemealMinter[acconut] == true, "MinterRole: caller does not have the Minter role");
+    _;
+}
+
+//유저에게 badgemealMinter 권한 부여
+function addBadgemealMinter(address acconut) public onlyMinter {
+    badgemealMinter[acconut] = true;
+}
+
+//유저의 badgemealMinter 권한 삭제
+function removeBadgemealMinter(address acconut) public onlyMinter {
+    badgemealMinter[acconut] = false;
+}
+```
+
+- mintWithTokenURI 함수 수정 및 필요한 utils 함수 추가
+  - `_checkMenu` 함수를 실행해서 true 이면 특정 NFT(ex: 국밥 NFT)를 19개 이상 소유했는지 판별해서, `_removeOwnToken` 함수로 19개를 삭제한 후 마스터 NFT 발행
+  - 위 함수 결과 값이 false 이면 일반 NFT 발행
+
+```sol
+function mintWithTokenURI(
+    address to,
+    uint256 tokenId,
+    string memory genralTokenURI,
+    string memory masterTokenURI,
+    string memory menuType
+) public onlyBadgemealMinter(to) {
+    require(bytes(masterTokenURI).length != 0, "No More Master NFT.");
+    uint256 userBalance = balanceOf(to);
+
+    //특정 NFT(ex: 국밥 NFT)를 19개 이상 소유했는지 판별해서 19개를 삭제한 후 마스터 NFT 발행
+    if(_checkMenu(to, menuType, userBalance) >= 19) {
+        _removeOwnToken(to, menuType);
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, masterTokenURI);
+        _setNftType(tokenId, 2);
+        _setMenuType(tokenId, menuType);
+
+        emit MintMasterNFT('MintMasterNFT');
+    } else {
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, genralTokenURI);
+        _setNftType(tokenId, 1);
+        _setMenuType(tokenId, menuType);
+
+        emit MintGeneralNFT('MintGeneralNFT');
+    }
+}
+
+//소유한 특정 메뉴 NFT 갯수 확인
+function _checkMenu(address owner, string memory menuType, uint256 balance) private returns(uint256){
+    uint256 result = 0;
+    uint256[] memory owendAllTokenList = getOwnedTokens(owner);
+    for (uint256 i = 0; i< balance; i++){
+        if(_ownNftType(owendAllTokenList[i], menuType)){
+            result++;
+        }
+    }
+    return result;
+}
+
+//소유한 19개 메뉴 NFT burn
+function _removeOwnToken(address to, string memory menuType) private{
+    uint256 count = 0;
+    uint256[] memory owendAllTokenList = getOwnedTokens(to);
+    //유저가 가지고 있는 기존 NFT 19개 삭제
+    for (uint256 i = 0; i < owendAllTokenList.length; i++) {
+        bool isSucess = _burnForMasterNFT(to, owendAllTokenList[i], menuType);
+        if(isSucess) {
+            count ++;
+        }
+        if(count == 19) {
+            break;
+        }
+    }
+}
+```
+
+- mintWithKlay 함수 추가
+
+```sol
+function mintWithKlay(
+    address to,
+    uint256 tokenId,
+    string memory genralTokenURI,
+    string memory masterTokenURI,
+    string memory menuType
+) public payable {
+    address payable receiver = address(uint160(owner()));
+    receiver.transfer(10**17*5);
+
+    mintWithTokenURI(to, tokenId, genralTokenURI, masterTokenURI, menuType);
+}
+```
+
+#### 추후 보완 사항
+
+- KIP 17 관련 표준 컨트랙트들을 수정한 것을 Klaytn17MintBadgemeal 컨트랙트 내부에서 다시 구현해놓으면 좋을 것 같다.
+
+<br />
 
 ## Vote 컨트랙트
 
